@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Manrope", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-primary: #00236f;
+  --color-primary-container: #1e3a8a;
+  --color-surface: #faf8ff;
+  --color-on-surface: #1a1b21;
+  --color-outline: #757682;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    
+    .print-only {
+      display: block !important;
+    }
+
+    body {
+      background-color: white !important;
+    }
+
+    main {
+       padding: 0 !important;
+       margin: 0 !important;
+    }
+
+    .pl-72 {
+      padding-left: 0 !important;
+    }
+
+    /* Hide sidebar and header during print */
+    aside, header {
+      display: none !important;
+    }
+  }
+
+  .print-only {
+    display: none;
+  }
+}
+

@@ -1,0 +1,8 @@
+{
+  "name": "Gerenciador de Arquivos",
+  "description": "Um portal para o gerenciamento de visitantes e armários de museus e bibliotecas.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": []
+}

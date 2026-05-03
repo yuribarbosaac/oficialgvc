@@ -44,11 +44,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user || null);
       
       if (spaceSubscription) {
-        supabase.removeChannel(spaceSubscription);
+        supabase.removeChannel(spaceSubscription).then(() => {});
         spaceSubscription = null;
       }
       if (userSubscription) {
-        supabase.removeChannel(userSubscription);
+        supabase.removeChannel(userSubscription).then(() => {});
         userSubscription = null;
       }
 
@@ -67,27 +67,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             nome: uData.nome,
             email: uData.email,
             perfil: uData.perfil,
-            espacoId: uData.espaco_id || 'todos',
+            espacoId: uData.espaco_id || null,
             espacoNome: uData.espaco_nome,
             ativo: uData.ativo
           } as SystemUser;
           setUserData(formattedUser);
 
           // Realtime user updates
-          userSubscription = supabase.channel('user-updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios', filter: `auth_uid=eq.${session.user.id}` }, payload => {
-              if (payload.new) {
-                setUserData({
-                  id: payload.new.id,
-                  nome: payload.new.nome,
-                  email: payload.new.email,
-                  perfil: payload.new.perfil,
-                  espacoId: payload.new.espaco_id || 'todos',
-                  espacoNome: payload.new.espaco_nome,
-                  ativo: payload.new.ativo
-                } as SystemUser);
-              }
-            }).subscribe();
+          // userSubscription = supabase.channel('user-updates')
+          //   .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios', filter: `auth_uid=eq.${session.user.id}` }, payload => {
+          //     if (payload.new) {
+          //       setUserData({
+          //         id: payload.new.id,
+          //         nome: payload.new.nome,
+          //         email: payload.new.email,
+          //         perfil: payload.new.perfil,
+          //         espacoId: payload.new.espaco_id || null,
+          //         espacoNome: payload.new.espaco_nome,
+          //         ativo: payload.new.ativo
+          //       } as SystemUser);
+          //     }
+          //   }).subscribe();
 
           if (formattedUser.espacoId && formattedUser.espacoId !== 'todos' && formattedUser.espacoId !== 'desconhecido') {
             const { data: sData } = await supabase
@@ -151,8 +151,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       authListener.subscription.unsubscribe();
-      if (spaceSubscription) supabase.removeChannel(spaceSubscription);
-      if (userSubscription) supabase.removeChannel(userSubscription);
+      if (spaceSubscription) supabase.removeChannel(spaceSubscription).then(() => {});
+      if (userSubscription) supabase.removeChannel(userSubscription).then(() => {});
     };
   }, []);
 

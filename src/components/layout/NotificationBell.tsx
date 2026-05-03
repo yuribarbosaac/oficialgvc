@@ -17,13 +17,13 @@ export default function NotificationBell() {
     const fetchNotifications = async () => {
       const { data, error } = await supabase.from('auditoria')
         .select('*')
-        .order('timestamp', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(5);
         
       if (data) {
         setNotifications(data);
         const lastRead = localStorage.getItem('gvc_last_read_audit') || '0';
-        const unread = data.filter((n: any) => new Date(n.timestamp || 0).getTime() > parseInt(lastRead)).length;
+        const unread = data.filter((n: any) => new Date(n.created_at || 0).getTime() > parseInt(lastRead)).length;
         setUnreadCount(unread);
       }
     };
@@ -95,8 +95,8 @@ export default function NotificationBell() {
                 <div className="divide-y divide-slate-50">
                   {notifications.map((notif) => {
                     let dateStr = '';
-                    if (notif.timestamp) {
-                      const date = new Date(notif.timestamp);
+                    if (notif.created_at) {
+                      const date = new Date(notif.created_at);
                       const diff = Math.floor((new Date().getTime() - date.getTime()) / 60000); // in minutes
                       if (diff < 1) dateStr = 'Agora mesmo';
                       else if (diff < 60) dateStr = `há ${diff} min`;

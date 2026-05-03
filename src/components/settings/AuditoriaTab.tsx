@@ -18,7 +18,7 @@ const AuditoriaTab: React.FC = () => {
     const fetchLogs = async () => {
       const { data, error } = await supabase.from('auditoria')
         .select('*')
-        .order('timestamp', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(50);
         
       if (data) {
@@ -95,7 +95,7 @@ const AuditoriaTab: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
                       <Clock size={12} className="text-slate-400" />
-                      {log.timestamp ? format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm:ss') : 'Processando...'}
+                      {log.created_at ? format(new Date(log.created_at), 'dd/MM/yyyy HH:mm:ss') : 'Processando...'}
                     </div>
                   </td>
                   <td className="px-6 py-4">

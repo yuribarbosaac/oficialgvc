@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
-import { createClient } from '@supabase/supabase-js';
+
 import { registrarAuditoria } from '../../utils/auditoria';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -132,33 +132,26 @@ export default function UserModal({ isOpen, onClose, userToEdit }: UserModalProp
 
         await registrarAuditoria("editou_usuario", `Editou usuário ${formData.nome} (${formData.perfil})`, userToEdit.id, currentAdmin);
       } else {
-        const secondarySupabase = createClient(
-          import.meta.env.VITE_SUPABASE_URL,
-          import.meta.env.VITE_SUPABASE_ANON_KEY,
-          { auth: { persistSession: false, autoRefreshToken: false } }
-        );
-        
-        const { data: authData, error: authError } = await secondarySupabase.auth.signUp({
-          email: formData.email,
-          password: formData.senha,
+        const { data: responseData, error: fnError } = await supabase.functions.invoke('create-user', {
+          body: {
+            email: formData.email,
+            senha: formData.senha,
+            nome: formData.nome,
+            perfil: formData.perfil,
+            espacoId: formData.espacoId,
+            espacoNome: dataToSave.espaco_nome
+          }
         });
 
-        if (authError) {
-          alert('Erro ao criar usuário na autenticação: ' + authError.message);
-          throw authError;
+        if (fnError || responseData?.error) {
+          alert('Erro ao criar usuário: ' + (fnError?.message || responseData?.error));
+          throw new Error(fnError?.message || responseData?.error);
         }
 
-        const newUid = authData.user?.id;
+        const newUid = responseData?.user?.id;
         if (newUid) {
-          dataToSave.id = newUid;
-          dataToSave.auth_uid = newUid;
-          dataToSave.criado_por = currentAdmin?.email || 'Sistema';
-          
-          const { error: dbError } = await supabase.from('usuarios').insert([dataToSave]);
-          if (dbError) throw dbError;
-          
-          await registrarAuditoria("criou_usuario", `Criou usuário ${formData.nome} (${formData.perfil})`, newUid, currentAdmin);
-          alert('Usuário criado com sucesso e sincronizado com a autenticação!');
+          await registrarAuditoria("criou_usuario", `Criou usuário ${formData.nome} (${formData.perfil}) de forma segura`, newUid, currentAdmin);
+          alert('Usuário criado com sucesso com privilégios adequados!');
         }
       }
       

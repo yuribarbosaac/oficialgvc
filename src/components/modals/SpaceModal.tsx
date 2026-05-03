@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
-import { registrarAuditoria } from '../../utils/auditoria';
+import { auditService } from '../../services/auditService';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface SpaceModalProps {
@@ -142,12 +142,12 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ isOpen, onClose, spaceToEdit })
 
       if (spaceToEdit) {
         await supabase.from('espacos').update(dataToSave).eq('id', spaceToEdit.id);
-        await registrarAuditoria("editou_espaco", `Editou espaço cultural ${formData.nome}`, spaceToEdit.id, currentAdmin);
+        await auditService.log({ acao: "editou_espaco", detalhes: `Editou espaço cultural ${formData.nome}`, entidadeId: spaceToEdit.id, userProfile: currentAdmin });
       } else {
         const { data, error } = await supabase.from('espacos').insert([dataToSave]).select().single();
         if (error) throw error;
         if (data) {
-          await registrarAuditoria("criou_espaco", `Criou novo espaço cultural ${formData.nome}`, data.id, currentAdmin);
+          await auditService.log({ acao: "criou_espaco", detalhes: `Criou novo espaço cultural ${formData.nome}`, entidadeId: data.id, userProfile: currentAdmin });
         }
       }
       onClose();

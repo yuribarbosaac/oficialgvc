@@ -20,7 +20,7 @@ import { format } from 'date-fns';
 import SpacesTab from '../settings/SpacesTab';
 import UsersTab from '../settings/UsersTab';
 import AuditoriaTab from '../settings/AuditoriaTab';
-import { registrarAuditoria } from '../../utils/auditoria';
+import { auditService } from '../../services/auditService';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function Settings() {
@@ -103,7 +103,7 @@ export default function Settings() {
       link.click();
       document.body.removeChild(link);
       showToast('Backup exportado com sucesso!', 'success');
-      await registrarAuditoria("exportou_backup", "Realizou exportação de backup de segurança", null, currentAdmin);
+      await auditService.log({ acao: "exportou_backup", detalhes: "Realizou exportação de backup de segurança", entidadeId: null, userProfile: currentAdmin });
     } catch (error) {
       console.error(error);
       showToast('Erro ao exportar backup.', 'error');

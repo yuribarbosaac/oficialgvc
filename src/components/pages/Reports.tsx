@@ -19,7 +19,7 @@ import { normalizarVisita, traduzirPerfil } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
-import { registrarAuditoria } from '../../utils/auditoria';
+import { auditService } from '../../services/auditService';
 import { useAuth } from '../../contexts/AuthContext';
 import ConfirmModal from '../modals/ConfirmModal';
 
@@ -78,8 +78,8 @@ export default function Reports() {
 
     fetchConfigAndLocations();
 
-    const configChannel = supabase.channel('config-updates').on('postgres_changes', { event: '*', schema: 'public', table: 'configuracoes' }, (payload) => {
-      if (payload.new && payload.new.id === 'sistema') setConfig((payload.new as any).data || {});
+    const configChannel = supabase.channel('config-updates').on('postgres_changes', { event: '*', schema: 'public', table: 'configuracoes' }, (payload: any) => {
+      if (payload.new && payload.new.id === 'sistema') setConfig(payload.new.data || {});
     }).subscribe();
 
     const spacesChannel = supabase.channel('spaces-updates-reports').on('postgres_changes', { event: '*', schema: 'public', table: 'espacos' }, () => {
@@ -179,7 +179,7 @@ export default function Reports() {
     try {
       await supabase.from('visits').delete().eq('id', visitToDelete.id);
       setVisits(prev => prev.filter(v => v.id !== visitToDelete.id));
-      await registrarAuditoria("excluiu_visita", `Excluiu registro de visita de ${visitToDelete.nome} em ${visitToDelete.local}`, visitToDelete.id, currentAdmin);
+      await auditService.log({ acao: "excluiu_visita", detalhes: `Excluiu registro de visita de ${visitToDelete.nome} em ${visitToDelete.local}`, entidadeId: visitToDelete.id, userProfile: currentAdmin });
     } catch (error) {
       alert("Erro ao excluir registro.");
     } finally {

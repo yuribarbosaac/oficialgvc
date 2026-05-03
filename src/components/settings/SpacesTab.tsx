@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2, MapPin, Warehouse, AlertCircle, Info, Lock, Monito
 import { motion, AnimatePresence } from 'motion/react';
 import SpaceModal from '../modals/SpaceModal';
 import ConfirmModal from '../modals/ConfirmModal';
-import { registrarAuditoria } from '../../utils/auditoria';
+import { auditService } from '../../services/auditService';
 import { useAuth } from '../../contexts/AuthContext';
 
 const SpacesTab: React.FC = () => {
@@ -52,10 +52,10 @@ const SpacesTab: React.FC = () => {
     try {
       if (confirmMode === 'disable') {
         await supabase.from('espacos').update({ ativo: false }).eq('id', targetSpace.id);
-        await registrarAuditoria("editou_espaco", `Desativou espaço ${targetSpace.nome}`, targetSpace.id, currentAdmin);
+        await auditService.log({ acao: "editou_espaco", detalhes: `Desativou espaço ${targetSpace.nome}`, entidadeId: targetSpace.id, userProfile: currentAdmin });
       } else {
         await supabase.from('espacos').delete().eq('id', targetSpace.id);
-        await registrarAuditoria("excluiu_espaco", `Excluiu espaço ${targetSpace.nome}`, targetSpace.id, currentAdmin);
+        await auditService.log({ acao: "excluiu_espaco", detalhes: `Excluiu espaço ${targetSpace.nome}`, entidadeId: targetSpace.id, userProfile: currentAdmin });
       }
     } catch (error) {
       alert('Erro ao processar ação.');

@@ -3,7 +3,7 @@ import { X, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 
-import { registrarAuditoria } from '../../utils/auditoria';
+import { auditService } from '../../services/auditService';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface UserModalProps {
@@ -130,7 +130,7 @@ export default function UserModal({ isOpen, onClose, userToEdit }: UserModalProp
           alert("Atenção: A atualização de senha para outros usuários via painel pode exigir a Supabase Admin API se a política de segurança não permitir. Verifique as configurações do projeto.");
         }
 
-        await registrarAuditoria("editou_usuario", `Editou usuário ${formData.nome} (${formData.perfil})`, userToEdit.id, currentAdmin);
+        await auditService.log({ acao: "editou_usuario", detalhes: `Editou usuário ${formData.nome} (${formData.perfil})`, entidadeId: userToEdit.id, userProfile: currentAdmin });
       } else {
         const { data: responseData, error: fnError } = await supabase.functions.invoke('create-user', {
           body: {
@@ -150,7 +150,7 @@ export default function UserModal({ isOpen, onClose, userToEdit }: UserModalProp
 
         const newUid = responseData?.user?.id;
         if (newUid) {
-          await registrarAuditoria("criou_usuario", `Criou usuário ${formData.nome} (${formData.perfil}) de forma segura`, newUid, currentAdmin);
+          await auditService.log({ acao: "criou_usuario", detalhes: `Criou usuário ${formData.nome} (${formData.perfil}) de forma segura`, entidadeId: newUid, userProfile: currentAdmin });
           alert('Usuário criado com sucesso com privilégios adequados!');
         }
       }

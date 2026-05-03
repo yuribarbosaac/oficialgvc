@@ -7,7 +7,7 @@ export default function Header() {
   // For superadmin, use a gradient avatar instead of a photo URL
   const avatarUrl = isSuperadmin
     ? null
-    : user?.photoURL || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100&h=100";
+    : (user as any)?.user_metadata?.avatar_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100&h=100";
 
   return (
     <header className="fixed top-0 right-0 left-72 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 z-40 flex items-center justify-between px-8">

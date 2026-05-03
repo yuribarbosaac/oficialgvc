@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { Plus, Edit2, Trash2, Shield, User as UserIcon, UserCheck, AlertCircle } from 'lucide-react';
 import UserModal from '../modals/UserModal';
 import ConfirmModal from '../modals/ConfirmModal';
-import { registrarAuditoria } from '../../utils/auditoria';
+import { auditService } from '../../services/auditService';
 import { useAuth } from '../../contexts/AuthContext';
 
 const UsersTab: React.FC = () => {
@@ -44,7 +44,7 @@ const UsersTab: React.FC = () => {
     
     try {
       await supabase.from('usuarios').delete().eq('id', userToDelete.id);
-      await registrarAuditoria("excluiu_usuario", `Excluiu usuário ${userToDelete.nome}`, userToDelete.id, currentAdmin);
+      await auditService.log({ acao: "excluiu_usuario", detalhes: `Excluiu usuário ${userToDelete.nome}`, entidadeId: userToDelete.id, userProfile: currentAdmin });
     } catch (error) {
       alert('Erro ao excluir usuário.');
     } finally {

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
-  BarChart, 
   ChevronLeft, 
   ChevronRight, 
   Download, 
@@ -14,6 +13,19 @@ import {
   Trash2,
   Calendar
 } from 'lucide-react';
+import { 
+  PieChart, 
+  Pie, 
+  Cell, 
+  Legend, 
+  BarChart,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Bar 
+} from 'recharts';
 import { supabase } from '../../lib/supabase';
 import { normalizarVisita, traduzirPerfil } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -43,6 +55,11 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [visitToDelete, setVisitToDelete] = useState<Visit | null>(null);
+
+  // Nov dados para gráficos
+  const [genderData, setGenderData] = useState<{ name: string; value: number; color: string }[]>([]);
+  const [ageData, setAgeData] = useState<{ name: string; value: number }[]>([]);
+  const [loadingCharts, setLoadingCharts] = useState(false);
 
   // Filters State
   const [startDate, setStartDate] = useState(() => {
@@ -133,6 +150,141 @@ export default function Reports() {
       setLoading(false);
     }
   };
+
+  // Funções para gráficos de Gênero e Faixa Etária
+  const fetchGenderAndAgeData = async () => {
+    setLoadingCharts(true);
+    try {
+      // Filtrar visitantes pelo período e localização
+      let visitsQuery = supabase.from('visits').select('visitor_id, espaco_id, checkin')
+        .gte('checkin', new Date(startDate + 'T00:00:00').toISOString())
+        .lte('checkin', new Date(endDate + 'T23:59:59').toISOString());
+
+      if (filterLocation !== 'Todos os Locais' && filterLocation !== 'todos') {
+        visitsQuery = visitsQuery.eq('espaco_id', filterLocation);
+      }
+
+      const { data: visitsData } = await visitsQuery;
+
+      if (!visitsData || visitsData.length === 0) {
+        setGenderData([]);
+        setAgeData([
+          { name: '0-12 anos', value: 0 },
+          { name: '13-17 anos', value: 0 },
+          { name: '18-24 anos', value: 0 },
+          { name: '25-35 anos', value: 0 },
+          { name: '36-50 anos', value: 0 },
+          { name: '51-65 anos', value: 0 },
+          { name: '66+ anos', value: 0 },
+          { name: 'Não informado', value: 0 }
+        ]);
+        setLoadingCharts(false);
+        return;
+      }
+
+      // Obter IDs únicos de visitantes no período
+      const visitorIds = [...new Set(visitsData.map(v => v.visitor_id))];
+
+      // Buscar dados dos visitantes
+      const { data: visitorsData } = await supabase
+        .from('visitors')
+        .select('id, gender, birth_date')
+        .in('id', visitorIds);
+
+      if (!visitorsData) {
+        setLoadingCharts(false);
+        return;
+      }
+
+      // Processar dados de gênero
+      const genderCounts = {
+        'Masculino': 0,
+        'Feminino': 0
+      };
+
+      visitorsData.forEach(v => {
+        if (v.gender === 'Masculino' || v.gender === 'masculino') {
+          genderCounts['Masculino']++;
+        } else if (v.gender === 'Feminino' || v.gender === 'feminino') {
+          genderCounts['Feminino']++;
+        }
+        // Ignora valores nulos ou outros
+      });
+
+      setGenderData(
+        Object.entries(genderCounts)
+          .filter(([_, value]) => value > 0)
+          .map(([name, value]) => ({
+            name,
+            value,
+            color: name === 'Masculino' ? '#3B82F6' : '#EC4899'
+          }))
+      );
+
+      // Processar dados de faixa etária
+      const ageGroups = {
+        '0-12 anos': 0,
+        '13-17 anos': 0,
+        '18-24 anos': 0,
+        '25-35 anos': 0,
+        '36-50 anos': 0,
+        '51-65 anos': 0,
+        '66+ anos': 0,
+        'Não informado': 0
+      };
+
+      const calculateAge = (birthDate: string): number | null => {
+        if (!birthDate) return null;
+        const birth = new Date(birthDate);
+        const today = new Date();
+        let age = today.getFullYear() - birth.getFullYear();
+        const monthDiff = today.getMonth() - birth.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+          age--;
+        }
+        return age >= 0 ? age : null;
+      };
+
+      visitorsData.forEach(v => {
+        if (v.birth_date) {
+          const age = calculateAge(v.birth_date);
+          if (age !== null) {
+            if (age <= 12) ageGroups['0-12 anos']++;
+            else if (age <= 17) ageGroups['13-17 anos']++;
+            else if (age <= 24) ageGroups['18-24 anos']++;
+            else if (age <= 35) ageGroups['25-35 anos']++;
+            else if (age <= 50) ageGroups['36-50 anos']++;
+            else if (age <= 65) ageGroups['51-65 anos']++;
+            else ageGroups['66+ anos']++;
+          } else {
+            ageGroups['Não informado']++;
+          }
+        } else {
+          ageGroups['Não informado']++;
+        }
+      });
+
+      setAgeData([
+        { name: '0-12 anos', value: ageGroups['0-12 anos'] },
+        { name: '13-17 anos', value: ageGroups['13-17 anos'] },
+        { name: '18-24 anos', value: ageGroups['18-24 anos'] },
+        { name: '25-35 anos', value: ageGroups['25-35 anos'] },
+        { name: '36-50 anos', value: ageGroups['36-50 anos'] },
+        { name: '51-65 anos', value: ageGroups['51-65 anos'] },
+        { name: '66+ anos', value: ageGroups['66+ anos'] },
+        { name: 'Não informado', value: ageGroups['Não informado'] }
+      ]);
+
+    } catch (error) {
+      console.error("Erro ao carregar dados de gráficos:", error);
+    } finally {
+      setLoadingCharts(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGenderAndAgeData();
+  }, [startDate, endDate, filterLocation]);
 
   const handleExportExcel = () => {
     const exportData = visits.map(v => {
@@ -464,6 +616,85 @@ export default function Reports() {
                Próximo <ChevronRight size={16} />
              </button>
            </div>
+        </div>
+      </div>
+
+      {/* Novos Gráficos: Gênero e Faixa Etária */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+        {/* Gráfico de Gênero */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest mb-4">
+            Visitantes por Gênero
+          </h3>
+          {loadingCharts ? (
+            <div className="h-[300px] flex items-center justify-center">
+              <div className="animate-pulse text-gray-400">Carregando...</div>
+            </div>
+          ) : genderData.length === 0 ? (
+            <div className="h-[300px] flex items-center justify-center text-gray-400">
+              Nenhum dado disponível
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={genderData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={100}
+                  dataKey="value"
+                >
+                  {genderData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => [`${value} visitantes`, 'Quantidade']} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Gráfico de Faixa Etária */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest mb-4">
+            Visitantes por Faixa Etária
+          </h3>
+          {loadingCharts ? (
+            <div className="h-[300px] flex items-center justify-center">
+              <div className="animate-pulse text-gray-400">Carregando...</div>
+            </div>
+          ) : ageData.length === 0 ? (
+            <div className="h-[300px] flex items-center justify-center text-gray-400">
+              Nenhum dado disponível
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={ageData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fill: '#64748b' }} 
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fill: '#64748b' }} 
+                />
+                <Tooltip 
+                  formatter={(value: number) => [`${value} visitantes`, 'Quantidade']}
+                />
+                <Bar dataKey="value" fill="#6366F1" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 

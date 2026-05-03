@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDebounce } from '../../hooks/useDebounce';
 import { 
   Lock, 
   LockOpen, 
@@ -31,18 +32,21 @@ export default function Lockers() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const totalLockersCount = spaceConfig?.totalArmarios || 20;
 
   useEffect(() => {
     if (!userData) return;
 
-    const isGlobal = userData.perfil === 'administrador' || userData.espacoId === 'todos';
-    const espacoId = userData.espacoId;
+    const isGlobalAdmin = userData.perfil === 'administrador' && 
+      (!userData.espacoId || userData.espacoId === 'todos');
+    const espacoId = isGlobalAdmin ? null : userData.espacoId;
 
     const fetchLockers = async () => {
       let q = supabase.from('lockers').select('*');
-      if (!isGlobal && espacoId) {
+      if (espacoId) {
         q = q.eq('espaco_id', espacoId);
       }
       
@@ -90,15 +94,13 @@ export default function Lockers() {
   }, [totalLockersCount, userData]);
 
   useEffect(() => {
-    if (searchTerm.length > 2) {
-      const isGlobal = userData?.perfil === 'administrador' || userData?.espacoId === 'todos';
-      
+    if (debouncedSearchTerm.length > 2) {
       const searchVisitors = async () => {
         const { data } = await supabase.from('visitors').select('*');
         if (!data) return;
 
         const filtered = data.filter((v: any) => {
-          const searchLower = searchTerm.toLowerCase();
+          const searchLower = debouncedSearchTerm.toLowerCase();
           const cleanTokenSearch = searchLower.replace(/[^\d]/g, '');
           const searchTokens = searchLower.split(/\s+/).filter(t => t.length > 0);
           
@@ -106,7 +108,7 @@ export default function Lockers() {
             v.full_name.toLowerCase().includes(token)
           );
           
-          const cpfMatches = v.cpf && cleanTokenSearch && v.cpf.includes(cleanTokenSearch);
+          const cpfMatches = v.cpf && cleanTokenSearch && v.cpf.replace(/[^\d]/g, '').includes(cleanTokenSearch);
           const passportMatches = v.passport && searchLower && v.passport.toLowerCase().includes(searchLower);
           
           return nameMatches || cpfMatches || passportMatches;
@@ -124,7 +126,7 @@ export default function Lockers() {
     } else {
       setSearchResults([]);
     }
-  }, [searchTerm, userData]);
+  }, [debouncedSearchTerm]);
 
   const handleLockerClick = (locker: Locker) => {
     if (locker.status === 'occupied') return;
@@ -135,21 +137,27 @@ export default function Lockers() {
   };
 
   const assignLocker = async (visitor: any) => {
-    if (!selectedLocker || !userData?.espacoId) return;
+    if (!selectedLocker || !userData) return;
+
+    const isGlobalAdmin = userData.perfil === 'administrador' && 
+      (!userData.espacoId || userData.espacoId === 'todos');
+    const targetEspacoId = isGlobalAdmin ? null : userData.espacoId;
 
     try {
-      const { data: existing } = await supabase.from('lockers').select('number')
-        .eq('espaco_id', userData.espacoId)
-        .in('status', ['occupied', 'Ocupado'])
-        .eq('visitor_id', visitor.id);
-      
-      if (existing && existing.length > 0) {
-        setToast({ 
-          message: `ERRO: Este visitante já possui o armário ${existing[0].number}`, 
-          type: 'error' 
-        });
-        setTimeout(() => setToast(null), 5000);
-        return;
+      if (targetEspacoId) {
+        const { data: existing } = await supabase.from('lockers').select('number')
+          .eq('espaco_id', targetEspacoId)
+          .in('status', ['occupied', 'Ocupado'])
+          .eq('visitor_id', visitor.id);
+        
+        if (existing && existing.length > 0) {
+          setToast({ 
+            message: `ERRO: Este visitante já possui o armário ${existing[0].number}`, 
+            type: 'error' 
+          });
+          setTimeout(() => setToast(null), 5000);
+          return;
+        }
       }
 
       await supabase.from('lockers').insert({
@@ -157,7 +165,7 @@ export default function Lockers() {
         status: 'occupied',
         visitor_id: visitor.id,
         visitor_name: visitor.fullName,
-        espaco_id: userData.espacoId === 'todos' ? null : userData.espacoId
+        espaco_id: targetEspacoId
       });
       
       setToast({ message: `Armário ${selectedLocker.number} ocupado com sucesso!`, type: 'success' });

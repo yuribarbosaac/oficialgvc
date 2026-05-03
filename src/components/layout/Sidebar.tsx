@@ -45,7 +45,7 @@ export default function Sidebar({ onNewCheckIn }: SidebarProps) {
       path: '/agendamento',
       hidden: !spaceConfig?.perfilAgendamento && userData?.perfil !== 'administrador'
     },
-    { icon: FileText, label: 'Relatórios', path: '/reports' },
+    { icon: FileText, label: 'Relatórios', path: '/reports', hidden: !['coordenador', 'administrador'].includes(userData?.perfil || '') },
     { icon: SettingsIcon, label: 'Configurações', path: '/configuracoes' }
   ].filter(item => {
     if (item.hidden) return false;
@@ -137,7 +137,7 @@ export default function Sidebar({ onNewCheckIn }: SidebarProps) {
         <div className="px-4 py-2 flex items-center gap-2 mb-2">
           <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 animate-pulse'}`} />
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            {isOnline ? 'Conectado ao Firestore' : 'Sem Conexão'}
+            {isOnline ? 'Conectado' : 'Sem Conexão'}
           </span>
         </div>
         <a 

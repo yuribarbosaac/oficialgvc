@@ -21,6 +21,8 @@ export interface Visitor {
   category: VisitorCategory;
   photoUrl?: string;
   createdAt: string;
+  birthDate?: string;
+  address?: string;
 }
 
 export enum LockerStatus {

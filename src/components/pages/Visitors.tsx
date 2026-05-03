@@ -46,7 +46,9 @@ export default function Visitors() {
         photoUrl: d.photo_url,
         createdAt: d.created_at,
         email: d.email,
-        phone: d.phone
+        phone: d.phone,
+        birthDate: d.birth_date,
+        address: d.address
       })) as Visitor[];
       setVisitors(mapped);
     } catch (err) {

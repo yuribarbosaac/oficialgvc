@@ -51,12 +51,13 @@ export default function Telecentro() {
   useEffect(() => {
     if (!userData) return;
 
-    const isGlobal = userData.perfil === 'administrador' || userData.espacoId === 'todos';
-    const espacoId = userData.espacoId;
+    const isGlobalAdmin = userData.perfil === 'administrador' && 
+      (!userData.espacoId || userData.espacoId === 'todos');
+    const espacoId = isGlobalAdmin ? null : userData.espacoId;
 
     const fetchComputadores = async () => {
       let q = supabase.from('computadores').select('*');
-      if (!isGlobal && espacoId) {
+      if (espacoId) {
         q = q.eq('espaco_id', espacoId);
       }
       
@@ -146,21 +147,27 @@ export default function Telecentro() {
   };
 
   const iniciarComputador = async (visitante: any) => {
-    if (!selectedComputador || !userData?.espacoId) return;
+    if (!selectedComputador || !userData) return;
+
+    const isGlobalAdmin = userData.perfil === 'administrador' && 
+      (!userData.espacoId || userData.espacoId === 'todos');
+    const targetEspacoId = isGlobalAdmin ? null : userData.espacoId;
 
     try {
-      const { data: existing } = await supabase.from('computadores').select('numero')
-        .eq('espaco_id', userData.espacoId)
-        .in('status', ['Em Uso', 'Excedido'])
-        .eq('usuario_id', visitante.id);
-      
-      if (existing && existing.length > 0) {
-        setToast({ 
-          message: `ERRO: Este visitante já está utilizando o computador ${existing[0].numero}`, 
-          type: 'error' 
-        });
-        setTimeout(() => setToast(null), 5000);
-        return;
+      if (targetEspacoId) {
+        const { data: existing } = await supabase.from('computadores').select('numero')
+          .eq('espaco_id', targetEspacoId)
+          .in('status', ['Em Uso', 'Excedido'])
+          .eq('usuario_id', visitante.id);
+        
+        if (existing && existing.length > 0) {
+          setToast({ 
+            message: `ERRO: Este visitante já está utilizando o computador ${existing[0].numero}`, 
+            type: 'error' 
+          });
+          setTimeout(() => setToast(null), 5000);
+          return;
+        }
       }
 
       const agora = new Date();
@@ -171,7 +178,7 @@ export default function Telecentro() {
         status: 'Em Uso',
         usuario_id: visitante.id,
         usuario_nome: visitante.fullName,
-        espaco_id: userData.espacoId === 'todos' ? null : userData.espacoId,
+        espaco_id: targetEspacoId,
         espaco_nome: userData.espacoNome || '',
         horario_inicio: agora.toISOString(),
         horario_limite: limite.toISOString()

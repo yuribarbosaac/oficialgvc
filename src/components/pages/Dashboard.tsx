@@ -23,44 +23,76 @@ export default function Dashboard() {
     visitorsToday: 0,
     activeVisits: 0,
     occupiedLockers: 0,
-    exceededVisits: 0
+    exceededVisits: 0,
+    totalArmarios: 20
   });
   const [recentVisits, setRecentVisits] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    if (!userData?.espacoId) return;
-    const isGlobal = userData.perfil === 'administrador' || !userData.espacoId;
-    const targetSpaceId = userData.espacoId;
+    if (!userData) return;
+    
+    const isGlobalAdmin = userData.perfil === 'administrador' && 
+      (!userData.espacoId || userData.espacoId === 'todos' || userData.espacoId === 'todos');
 
     try {
       const today = new Date();
       const startToday = startOfDay(today).toISOString();
       const endToday = endOfDay(today).toISOString();
 
-      // Usa visitService para visitas do dia
-      const { count: countToday } = await visitService.countToday(targetSpaceId);
+      let visitsQuery = supabase.from('visits').select('*', { count: 'exact' })
+        .gte('checkin', startToday)
+        .lte('checkin', endToday);
+      
+      if (!isGlobalAdmin && userData.espacoId) {
+        visitsQuery = visitsQuery.eq('espaco_id', userData.espacoId);
+      }
+      
+      const { count: countToday } = await visitsQuery;
 
-      // Usa visitService para visitas ativas
-      const { data: activeData } = await visitService.listActive(targetSpaceId);
+      let activeQuery = supabase.from('visits')
+        .select('*, visitors(full_name, cpf, passport, is_foreigner)')
+        .in('status', ['Ativo', 'Excedido']);
+      
+      if (!isGlobalAdmin && userData.espacoId) {
+        activeQuery = activeQuery.eq('espaco_id', userData.espacoId);
+      }
+      
+      const { data: activeData } = await activeQuery;
       const activeVisitsCount = activeData?.length || 0;
       const occupiedLockersCount = activeData?.filter(d => d.armario).length || 0;
 
-      // Usa visitService para histórico (últimos 5)
-      const { data: recentData } = await visitService.listHistory(targetSpaceId, 5);
+      let historyQuery = supabase.from('visits')
+        .select('*, visitors(full_name, cpf, passport, is_foreigner)')
+        .order('checkin', { ascending: false })
+        .limit(5);
+      
+      if (!isGlobalAdmin && userData.espacoId) {
+        historyQuery = historyQuery.eq('espaco_id', userData.espacoId);
+      }
+      
+      const { data: recentData } = await historyQuery;
       if (recentData) {
         setRecentVisits(recentData.map((doc: any) => normalizarVisita(doc)));
+      }
+
+      // Total de armários - se admin global, soma de todos os espaços
+      let totalArmarios = spaceConfig?.totalArmarios || 20;
+      if (isGlobalAdmin) {
+        const { data: spaces } = await supabase.from('espacos').select('perfil_armarios_quantidade').eq('ativo', true);
+        totalArmarios = spaces?.reduce((sum, s) => sum + (s.perfil_armarios_quantidade || 0), 0) || 20;
       }
 
       setStats({
         visitorsToday: countToday || 0,
         activeVisits: activeVisitsCount,
         occupiedLockers: occupiedLockersCount,
-        exceededVisits: 0
+        exceededVisits: activeData?.filter((d: any) => d.status === 'Excedido').length || 0,
+        totalArmarios
       });
 
-      // Gráfico 7 dias (queries leves mantidas inline ou movidas depois)
+      // Gráfico 7 dias
       const days = [];
       for (let i = 6; i >= 0; i--) {
         const day = subDays(today, i);
@@ -70,7 +102,10 @@ export default function Dashboard() {
         let q = supabase.from('visits').select('*', { count: 'exact', head: true })
           .gte('checkin', start)
           .lte('checkin', end);
-        if (!isGlobal && targetSpaceId) q = q.eq('espaco_id', targetSpaceId);
+        
+        if (!isGlobalAdmin && userData.espacoId) {
+          q = q.eq('espaco_id', userData.espacoId);
+        }
 
         const { count } = await q;
         days.push({
@@ -86,21 +121,34 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [userData]);
+  }, [userData, spaceConfig]);
 
   useEffect(() => {
     fetchData();
 
-    const channel = supabase.channel('dashboard-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, () => {
+    const channel = supabase.channel('dashboard-updates');
+    
+    if (userData?.perfil === 'administrador' && (!userData?.espacoId || userData?.espacoId === 'todos')) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, () => {
         fetchData();
-      })
-      .subscribe();
+      });
+    } else if (userData?.espacoId) {
+      channel.on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'visits',
+        filter: `espaco_id=eq.${userData.espacoId}`
+      }, () => {
+        fetchData();
+      });
+    }
+    
+    channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchData]);
+  }, [fetchData, userData]);
 
   const formatTime = (ts: any) => {
     if (!ts) return '--:--';
@@ -133,7 +181,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard label="Visitantes Hoje" value={stats.visitorsToday.toString()} icon={<Users className="text-blue-600" />} color="blue" />
         <StatCard label="Visitas Ativas" value={stats.activeVisits.toString()} icon={<Clock className="text-emerald-600" />} color="emerald" />
-        <StatCard label="Armários Ocupados" value={stats.occupiedLockers.toString()} icon={<Lock className="text-amber-600" />} color="amber" desc={`De ${spaceConfig?.totalArmarios || 20} armários disponíveis`} />
+        <StatCard label="Armários Ocupados" value={stats.occupiedLockers.toString()} icon={<Lock className="text-amber-600" />} color="amber" desc={`De ${stats.totalArmarios || 20} armários disponíveis`} />
         <StatCard label="Visitas Excedidas" value={stats.exceededVisits.toString()} icon={<AlertCircle className="text-red-600" />} color="red" isAlert={stats.exceededVisits > 0} />
       </div>
 
@@ -168,9 +216,11 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
           <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
             <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest">Últimos Check-ins</h3>
-            <Link to="/reports" className="group flex items-center gap-1 text-[10px] font-black text-primary uppercase tracking-tighter hover:gap-2 transition-all">
-              Ver Relatórios <ChevronRight size={14} />
-            </Link>
+            {(userData?.perfil === 'coordenador' || userData?.perfil === 'administrador') && (
+              <Link to="/reports" className="group flex items-center gap-1 text-[10px] font-black text-primary uppercase tracking-tighter hover:gap-2 transition-all">
+                Ver Relatórios <ChevronRight size={14} />
+              </Link>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
             {loading ? (

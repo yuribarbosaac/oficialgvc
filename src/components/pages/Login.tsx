@@ -53,163 +53,82 @@ export default function Login() {
         <div className="absolute -top-20 -left-20 w-80 h-80 bg-primary-fixed/20 rounded-full blur-[100px]" />
         <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-tertiary-fixed/15 rounded-full blur-[120px]" />
         
-        <div className="relative z-10 h-full w-full p-6">
-          <div className="flex gap-4 h-full">
+        <div className="relative z-10 h-full w-full p-3">
+          <div className="grid grid-cols-5 grid-rows-2 gap-2.5 h-full">
             <motion.div 
-              className="flex-[3] relative group cursor-pointer"
+              className="col-span-3 row-span-2 relative overflow-hidden rounded-2xl"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.7, ease: 'easeOut' }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             >
-              <motion.div 
-                className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent rounded-3xl opacity-0 blur-xl transition-opacity duration-500"
-                animate={{ opacity: 0 }}
-                whileHover={{ opacity: 1 }}
-              />
-              
               <motion.img 
                 src={FOTOS.foto1}
-                alt="Espaço cultural principal"
-                className="relative w-full h-full object-cover rounded-2xl shadow-xl border-4 border-surface-container-lowest"
-                whileHover={{ scale: 1.03 }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
+                alt="Espaço cultural"
+                className="w-full h-full object-cover"
+                whileHover={{ scale: 1.04 }}
+                transition={{ duration: 0.5 }}
               />
-              
-              <motion.div 
-                className="absolute inset-0 bg-gradient-to-t from-primary/30 via-transparent to-transparent rounded-2xl opacity-0 transition-opacity duration-500"
-                whileHover={{ opacity: 1 }}
-              />
-              
-              <motion.div 
-                className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300"
-                whileHover={{ opacity: 1 }}
-              >
-                <div className="w-16 h-16 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-2xl">
-                  <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </div>
-              </motion.div>
             </motion.div>
             
-            <div className="flex-1 flex flex-col gap-3">
-              <motion.div
-                className="flex-1 relative group cursor-pointer"
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-              >
-                <motion.img 
-                  src={FOTOS.foto4}
-                  alt="Detalhe artístico"
-                  className="w-full h-full object-cover rounded-xl shadow-lg border-3 border-surface-container-lowest"
-                  whileHover={{ 
-                    scale: 1.08, 
-                    boxShadow: '0 20px 40px rgba(0, 52, 101, 0.3)',
-                    borderColor: 'rgba(0, 52, 101, 0.5)'
-                  }}
-                  transition={{ duration: 0.4, ease: 'easeInOut' }}
-                />
-                <motion.div 
-                  className="absolute inset-0 flex items-center justify-center opacity-0 bg-black/20 rounded-xl"
-                  whileHover={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <svg className="w-6 h-6 text-white drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </motion.div>
-              </motion.div>
-              
-              <motion.div
-                className="flex-1 relative group cursor-pointer"
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              >
-                <motion.img 
-                  src={FOTOS.foto2}
-                  alt="Foto 2"
-                  className="w-full h-full object-cover rounded-xl shadow-lg border-3 border-surface-container-lowest"
-                  whileHover={{ 
-                    scale: 1.08, 
-                    boxShadow: '0 20px 40px rgba(0, 52, 101, 0.3)',
-                    borderColor: 'rgba(0, 52, 101, 0.5)'
-                  }}
-                  transition={{ duration: 0.4, ease: 'easeInOut' }}
-                />
-                <motion.div 
-                  className="absolute inset-0 flex items-center justify-center opacity-0 bg-black/20 rounded-xl"
-                  whileHover={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <svg className="w-6 h-6 text-white drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </motion.div>
-              </motion.div>
-              
-              <motion.div
-                className="flex-1 relative group cursor-pointer"
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-              >
-                <motion.img 
-                  src={FOTOS.foto3}
-                  alt="Foto 3"
-                  className="w-full h-full object-cover rounded-xl shadow-lg border-3 border-surface-container-lowest"
-                  whileHover={{ 
-                    scale: 1.08, 
-                    boxShadow: '0 20px 40px rgba(0, 52, 101, 0.3)',
-                    borderColor: 'rgba(0, 52, 101, 0.5)'
-                  }}
-                  transition={{ duration: 0.4, ease: 'easeInOut' }}
-                />
-                <motion.div 
-                  className="absolute inset-0 flex items-center justify-center opacity-0 bg-black/20 rounded-xl"
-                  whileHover={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <svg className="w-6 h-6 text-white drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </motion.div>
-              </motion.div>
-              
-              <motion.div
-                className="flex-1 relative group cursor-pointer"
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              >
-                <motion.img 
-                  src={FOTOS.foto5}
-                  alt="Foto 5"
-                  className="w-full h-full object-cover rounded-xl shadow-lg border-3 border-surface-container-lowest"
-                  whileHover={{ 
-                    scale: 1.08, 
-                    boxShadow: '0 20px 40px rgba(0, 52, 101, 0.3)',
-                    borderColor: 'rgba(0, 52, 101, 0.5)'
-                  }}
-                  transition={{ duration: 0.4, ease: 'easeInOut' }}
-                />
-                <motion.div 
-                  className="absolute inset-0 flex items-center justify-center opacity-0 bg-black/20 rounded-xl"
-                  whileHover={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <svg className="w-6 h-6 text-white drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </motion.div>
-              </motion.div>
-            </div>
+            <motion.div
+              className="col-span-1 row-span-1 relative overflow-hidden rounded-xl"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+            >
+              <motion.img 
+                src={FOTOS.foto4}
+                alt="Detalhe"
+                className="w-full h-full object-cover"
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.25 }}
+              />
+            </motion.div>
+            
+            <motion.div
+              className="col-span-1 row-span-1 relative overflow-hidden rounded-xl"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.15 }}
+            >
+              <motion.img 
+                src={FOTOS.foto2}
+                alt="Foto 2"
+                className="w-full h-full object-cover"
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.25 }}
+              />
+            </motion.div>
+            
+            <motion.div
+              className="col-span-1 row-span-1 relative overflow-hidden rounded-xl"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+            >
+              <motion.img 
+                src={FOTOS.foto3}
+                alt="Foto 3"
+                className="w-full h-full object-cover"
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.25 }}
+              />
+            </motion.div>
+            
+            <motion.div
+              className="col-span-1 row-span-1 relative overflow-hidden rounded-xl"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.25 }}
+            >
+              <motion.img 
+                src={FOTOS.foto5}
+                alt="Foto 5"
+                className="w-full h-full object-cover"
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.25 }}
+              />
+            </motion.div>
           </div>
         </div>
       </div>

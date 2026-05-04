@@ -13,6 +13,7 @@ import Visitors from './components/pages/Visitors';
 import Lockers from './components/pages/Lockers';
 import Telecentro from './components/pages/Telecentro';
 import Agendamento from './components/pages/Agendamento';
+import AgendamentoPublico from './components/pages/AgendamentoPublico';
 import Reports from './components/pages/Reports';
 import SettingsPage from './components/pages/Settings';
 import Login from './components/pages/Login';
@@ -66,6 +67,7 @@ export default function App() {
             <main className="pt-16 min-h-[calc(100vh-64px)] relative">
               <AnimatePresence mode="wait">
                 <Routes>
+                  <Route path="/agendamento-publico" element={<AgendamentoPublico />} />
                   <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/visitors" element={<ProtectedRoute><Visitors /></ProtectedRoute>} />
                   <Route path="/lockers" element={<ProtectedRoute><Lockers /></ProtectedRoute>} />

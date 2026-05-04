@@ -56,7 +56,19 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ isOpen, onClose, spaceToEdit })
     totalArmarios: 20,
     totalComputadores: 10,
     tempoLimiteComputador: 20,
-    capacidadeAgendamento: 0
+    capacidadeAgendamento: 0,
+    hasAuditorio: false,
+    qtdAuditorio: 0,
+    hasSalaEstudos: false,
+    qtdSalaEstudos: 0,
+    hasTeatro: false,
+    qtdTeatro: 0,
+    hasFilmoteca: false,
+    qtdFilmoteca: 0,
+    hasEspacoAberto: false,
+    qtdEspacoAberto: 0,
+    hasVisitaGuiada: false,
+    qtdVisitaGuiada: 0
   });
 
   useEffect(() => {
@@ -77,7 +89,19 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ isOpen, onClose, spaceToEdit })
         totalArmarios: spaceToEdit.total_armarios || spaceToEdit.totalArmarios || 20,
         totalComputadores: spaceToEdit.total_computadores || spaceToEdit.totalComputadores || 10,
         tempoLimiteComputador: spaceToEdit.tempo_limite_computador || spaceToEdit.tempoLimiteComputador || 20,
-        capacidadeAgendamento: spaceToEdit.capacidade_agendamento || spaceToEdit.capacidadeAgendamento || 0
+        capacidadeAgendamento: spaceToEdit.capacidade_agendamento || spaceToEdit.capacidadeAgendamento || 0,
+        hasAuditorio: spaceToEdit.has_auditorio || false,
+        qtdAuditorio: spaceToEdit.qtd_auditorio || 0,
+        hasSalaEstudos: spaceToEdit.has_sala_estudos || false,
+        qtdSalaEstudos: spaceToEdit.qtd_sala_estudos || 0,
+        hasTeatro: spaceToEdit.has_teatro || false,
+        qtdTeatro: spaceToEdit.qtd_teatro || 0,
+        hasFilmoteca: spaceToEdit.has_filmoteca || false,
+        qtdFilmoteca: spaceToEdit.qtd_filmoteca || 0,
+        hasEspacoAberto: spaceToEdit.has_espaco_aberto || false,
+        qtdEspacoAberto: spaceToEdit.qtd_espaco_aberto || 0,
+        hasVisitaGuiada: spaceToEdit.has_visita_guiada || false,
+        qtdVisitaGuiada: spaceToEdit.qtd_visita_guiada || 0
       });
       setMunicipioSearch(spaceToEdit.municipio || '');
     } else {
@@ -97,7 +121,19 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ isOpen, onClose, spaceToEdit })
         totalArmarios: 20,
         totalComputadores: 10,
         tempoLimiteComputador: 20,
-        capacidadeAgendamento: 0
+        capacidadeAgendamento: 0,
+        hasAuditorio: false,
+        qtdAuditorio: 0,
+        hasSalaEstudos: false,
+        qtdSalaEstudos: 0,
+        hasTeatro: false,
+        qtdTeatro: 0,
+        hasFilmoteca: false,
+        qtdFilmoteca: 0,
+        hasEspacoAberto: false,
+        qtdEspacoAberto: 0,
+        hasVisitaGuiada: false,
+        qtdVisitaGuiada: 0
       });
       setMunicipioSearch('');
     }
@@ -138,10 +174,28 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ isOpen, onClose, spaceToEdit })
         total_computadores: formData.totalComputadores,
         tempo_limite_computador: formData.tempoLimiteComputador,
         capacidade_agendamento: formData.capacidadeAgendamento,
+        has_auditorio: formData.hasAuditorio,
+        qtd_auditorio: formData.qtdAuditorio,
+        has_sala_estudos: formData.hasSalaEstudos,
+        qtd_sala_estudos: formData.qtdSalaEstudos,
+        has_teatro: formData.hasTeatro,
+        qtd_teatro: formData.qtdTeatro,
+        has_filmoteca: formData.hasFilmoteca,
+        qtd_filmoteca: formData.qtdFilmoteca,
+        has_espaco_aberto: formData.hasEspacoAberto,
+        qtd_espaco_aberto: formData.qtdEspacoAberto,
+        has_visita_guiada: formData.hasVisitaGuiada,
+        qtd_visita_guiada: formData.qtdVisitaGuiada
       };
 
       if (spaceToEdit) {
-        await supabase.from('espacos').update(dataToSave).eq('id', spaceToEdit.id);
+        const { error: updateError } = await supabase.from('espacos').update(dataToSave).eq('id', spaceToEdit.id);
+        if (updateError) {
+          console.error('Erro ao atualizar:', updateError);
+          alert('Erro ao salvar: ' + updateError.message);
+          setLoading(false);
+          return;
+        }
         await auditService.log({ acao: "editou_espaco", detalhes: `Editou espaço cultural ${formData.nome}`, entidadeId: spaceToEdit.id, userProfile: currentAdmin });
       } else {
         const { data, error } = await supabase.from('espacos').insert([dataToSave]).select().single();
@@ -382,24 +436,54 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ isOpen, onClose, spaceToEdit })
                             <CalendarDays size={14} className={formData.perfilAgendamento ? 'text-amber-500' : 'text-slate-400'} />
                             Agendamento
                           </label>
-                          <p className="text-[10px] text-slate-500">Agendamento de espaços e auditórios</p>
-                          
-                          {formData.perfilAgendamento && (
-                            <div className="mt-3 py-2 border-t border-slate-100">
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Capacidade (Assentos)</label>
-                              <input 
-                                type="number" 
-                                value={formData.capacidadeAgendamento}
-                                onChange={e => setFormData({...formData, capacidadeAgendamento: Number(e.target.value)})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-sm focus:ring-2 focus:ring-amber-200 outline-none"
-                              />
-                            </div>
-                          )}
+                          <p className="text-[10px] text-slate-500">Agendamento de espaços e eventos</p>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+                
+                {formData.perfilAgendamento && (
+                  <div className="mt-4">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+                      Tipos de Espaços Disponíveis (para agendamento)
+                    </label>
+                    <div className="space-y-2">
+                      {[
+                        { key: 'hasAuditorio', qtdKey: 'qtdAuditorio', label: '🎭 Auditório' },
+                        { key: 'hasSalaEstudos', qtdKey: 'qtdSalaEstudos', label: '📚 Sala de Estudos' },
+                        { key: 'hasTeatro', qtdKey: 'qtdTeatro', label: '🎬 Teatro' },
+                        { key: 'hasFilmoteca', qtdKey: 'qtdFilmoteca', label: '🎥 Filmoteca/Cinema' },
+                        { key: 'hasEspacoAberto', qtdKey: 'qtdEspacoAberto', label: '🌳 Espaço Aberto' },
+                        { key: 'hasVisitaGuiada', qtdKey: 'qtdVisitaGuiada', label: '🎓 Visita Guiada' }
+                      ].map((item) => (
+                        <div key={item.key} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
+                          <input 
+                            type="checkbox" 
+                            checked={formData[item.key as keyof typeof formData] as boolean}
+                            onChange={e => setFormData({...formData, [item.key]: e.target.checked})}
+                            className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                          />
+                          <span className="text-xs font-medium text-slate-700 w-40">{item.label}</span>
+                          {formData[item.key as keyof typeof formData] && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-slate-500 whitespace-nowrap">Capacidade Total:</span>
+                              <input 
+                                type="number" 
+                                min="0"
+                                value={formData[item.qtdKey as keyof typeof formData] as number}
+                                onChange={e => setFormData({...formData, [item.qtdKey]: Number(e.target.value)})}
+                                placeholder="0"
+                                className="w-16 bg-slate-50 border border-slate-200 rounded py-1.5 px-2 text-xs text-center focus:ring-2 focus:ring-amber-200 outline-none"
+                              />
+                              <span className="text-[10px] text-slate-400">lugares</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -440,29 +524,7 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ isOpen, onClose, spaceToEdit })
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 px-1">Tempo Limite Excedido (Horas) *</label>
-                  <div className="relative">
-                    <input 
-                      type="number" 
-                      value={formData.tempoLimiteExcedido}
-                      onChange={e => setFormData({...formData, tempoLimiteExcedido: Number(e.target.value)})}
-                      min="1"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pl-10 outline-none focus:ring-2 focus:ring-primary/20 transition-all font-sans"
-                      required
-                    />
-                    <Info size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  </div>
-                </div>
-
-                <div className="md:col-span-2">
-                   <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 flex gap-3">
-                      <Bell size={20} className="text-blue-500 shrink-0 mt-0.5" />
-                      <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                        Sistema marcará visitas como "Excedido" após <b>{formData.tempoLimiteExcedido} horas</b> de permanência.
-                      </p>
-                   </div>
-                </div>
+                
 
                 <div className="md:col-span-2">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 px-1">Mensagem de Boas-Vindas</label>

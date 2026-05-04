@@ -144,6 +144,23 @@ export default function Lockers() {
     const targetEspacoId = isGlobalAdmin ? null : userData.espacoId;
 
     try {
+      const { data: activeCheckIn } = await supabase
+        .from('visits')
+        .select('id, local')
+        .eq('visitor_id', visitor.id)
+        .in('status', ['Ativo', 'active'])
+        .eq('espaco_id', targetEspacoId)
+        .limit(1);
+      
+      if (!activeCheckIn || activeCheckIn.length === 0) {
+        setToast({ 
+          message: 'ERRO: Visitante não possui check-in ativo neste espaço.', 
+          type: 'error' 
+        });
+        setTimeout(() => setToast(null), 5000);
+        return;
+      }
+
       if (targetEspacoId) {
         const { data: existing } = await supabase.from('lockers').select('number')
           .eq('espaco_id', targetEspacoId)

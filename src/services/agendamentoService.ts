@@ -105,8 +105,7 @@ export const agendamentoService = {
       .update({
         status,
         resposta_coordenador: resposta,
-        coordenador_id: (await supabase.auth.getUser()).data.user?.id,
-        atualizado_em: new Date().toISOString(),
+        respondido_em: new Date().toISOString(),
       })
       .eq('id', id)
       .select()

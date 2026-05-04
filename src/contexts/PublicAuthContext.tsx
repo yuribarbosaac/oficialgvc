@@ -16,6 +16,7 @@ interface PublicAuthContextType {
   login: (email: string, password: string) => Promise<{ error: Error | null }>;
   loginWithGoogle: () => Promise<{ error: Error | null }>;
   logout: () => Promise<void>;
+  publicLoading: boolean;
 }
 
 const PublicAuthContext = createContext<PublicAuthContextType | undefined>(undefined);
@@ -74,7 +75,7 @@ export function PublicAuthProvider({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <PublicAuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout }}>
+    <PublicAuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, publicLoading: loading }}>
       {children}
     </PublicAuthContext.Provider>
   );

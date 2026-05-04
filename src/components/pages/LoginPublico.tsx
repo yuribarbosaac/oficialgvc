@@ -56,6 +56,8 @@ export default function LoginPublico() {
         setError('Erro ao autenticar: ' + authError.message);
       }
       setLoading(false);
+    } else {
+      navigate('/agendamento-publico');
     }
   };
 

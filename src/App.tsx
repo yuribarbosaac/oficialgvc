@@ -20,6 +20,7 @@ import SettingsPage from './components/pages/Settings';
 import Login from './components/pages/Login';
 import LoginPublico from './components/pages/LoginPublico';
 import CadastroPublico from './components/pages/CadastroPublico';
+import TermoCompromisso from './components/pages/TermoCompromisso';
 
 // Components
 import CheckInModal from './components/modals/CheckInModal';
@@ -69,7 +70,7 @@ function InternalRoutes({ onNewCheckIn }: { onNewCheckIn: () => void }) {
 
 export default function App() {
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
-  const { user, loading, isSuperadmin } = useAuth();
+  const { user, loading, isSuperadmin, isCitizen } = useAuth();
 
   if (loading) {
     return (
@@ -82,7 +83,9 @@ export default function App() {
     );
   }
 
-  if (!user && !isSuperadmin) {
+  const isPublicUser = !user || isCitizen;
+
+  if (isPublicUser && !isSuperadmin) {
     return (
       <PublicAuthProvider>
         <Router>
@@ -91,8 +94,9 @@ export default function App() {
             <Route path="/login-publico" element={<LoginPublico />} />
             <Route path="/cadastro-publico" element={<CadastroPublico />} />
             <Route path="/agendamento-publico" element={<AgendamentoPublico />} />
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="/termo-compromisso" element={<TermoCompromisso />} />
+            <Route path="/" element={<Navigate to="/agendamento-publico" replace />} />
+            <Route path="*" element={<Navigate to="/agendamento-publico" replace />} />
           </Routes>
         </Router>
       </PublicAuthProvider>

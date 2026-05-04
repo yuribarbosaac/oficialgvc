@@ -75,7 +75,7 @@ export interface FirestoreErrorInfo {
   }
 }
 
-export type UserRole = 'administrador' | 'coordenador' | 'funcionario' | 'monitor';
+export type UserRole = 'administrador' | 'coordenador' | 'funcionario' | 'monitor' | 'cidadao';
 
 export interface SystemUser {
   id: string;

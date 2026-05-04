@@ -13,6 +13,7 @@ import {
   XCircle,
   AlertTriangle,
   Building,
+  Trash2,
 } from 'lucide-react';
 
 interface AgendamentoDetalhesModalProps {
@@ -47,6 +48,7 @@ interface AgendamentoDetalhesModalProps {
   };
   onClose: () => void;
   onStatusChange: (id: string, status: 'aprovado' | 'rejeitado', resposta?: string) => void;
+  onDelete?: (id: string) => void;
   loading: boolean;
 }
 
@@ -78,10 +80,12 @@ export default function AgendamentoDetalhesModal({
   agendamento,
   onClose,
   onStatusChange,
+  onDelete,
   loading,
 }: AgendamentoDetalhesModalProps) {
   const [resposta, setResposta] = useState('');
   const [showConfirm, setShowConfirm] = useState<'aprovar' | 'rejeitar' | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
@@ -321,6 +325,7 @@ export default function AgendamentoDetalhesModal({
                 <button
                   onClick={() => setShowConfirm('rejeitar')}
                   className="px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors flex items-center gap-2"
+                  disabled={loading}
                 >
                   <XCircle size={18} />
                   Rejeitar
@@ -328,12 +333,14 @@ export default function AgendamentoDetalhesModal({
                 <button
                   onClick={() => setShowConfirm('aprovar')}
                   className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                  disabled={loading}
                 >
                   <CheckCircle size={18} />
                   Aprovar
                 </button>
               </>
             )}
+            
           </div>
         )}
       </div>

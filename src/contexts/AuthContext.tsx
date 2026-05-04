@@ -13,6 +13,8 @@ interface AuthContextType {
   isStaff: boolean;
   isMonitor: boolean;
   isSuperadmin: boolean;
+  isPublic: boolean;
+  isCitizen: boolean;
   hasPermission: (path: string) => boolean;
   logout: () => void;
 }
@@ -111,16 +113,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSpaceConfig(null);
           }
         } else {
-          // Create fallback if not found in table (shouldn't happen ideally)
-          setUserData({
-            id: session.user.id,
-            nome: session.user.email?.split('@')[0] || 'Usuário',
-            email: session.user.email || '',
-            perfil: 'funcionario',
-            espacoId: 'desconhecido',
-            espacoNome: 'Sem vínculo',
-            ativo: true
-          });
+          // Check if user is a public user (from public registration)
+          // If not found in usuarios table, check if it's a public auth user
+          const userEmail = session.user.email || '';
+          const isPublicUser = userEmail.includes('@') && 
+            !userEmail.endsWith('@cultura.gov.br');
+          
+          if (isPublicUser) {
+            // Treat as citizen/public user - set as null so App.tsx redirects to public area
+            setUserData(null);
+            setSpaceConfig(null);
+          } else {
+            // Internal user fallback
+            setUserData({
+              id: session.user.id,
+              nome: session.user.email?.split('@')[0] || 'Usuário',
+              email: session.user.email || '',
+              perfil: 'funcionario',
+              espacoId: 'desconhecido',
+              espacoNome: 'Sem vínculo',
+              ativo: true
+            });
+          }
         }
         setLoading(false);
       } else {
@@ -159,8 +173,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = userData?.perfil === 'administrador';
   const isCoordinator = userData?.perfil === 'coordenador' || isAdmin;
   const isStaff = userData?.perfil === 'funcionario' || isCoordinator;
+  const isInternalUser = ['administrador', 'coordenador', 'funcionario', 'monitor'].includes(userData?.perfil || '');
+  
   const isMonitor = userData?.perfil === 'monitor' || isAdmin;
-  const isSuperadmin = isAdmin; // Simplificado
+  const isSuperadmin = isAdmin;
+  const isCitizen = !isInternalUser;
+  const isPublic = !isInternalUser;
 
   const hasPermission = (path: string) => {
     const p = path.replace(/^\//, '') || 'painel';
@@ -192,6 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     await supabase.auth.signOut();
+    window.location.href = '/login';
   };
 
   return (
@@ -205,6 +224,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isStaff,
       isMonitor,
       isSuperadmin,
+      isPublic,
+      isCitizen,
       hasPermission,
       logout
     }}>

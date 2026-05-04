@@ -13,6 +13,18 @@ export interface Space {
   perfil_agendamento?: boolean;
   mensagem_boas_vindas?: string;
   ativo?: boolean;
+  capacidade_agendamento?: number;
+  has_auditorio?: boolean;
+  qtd_auditorio?: number;
+  has_sala_estudos?: boolean;
+  qtd_sala_estudos?: number;
+  has_teatro?: boolean;
+  qtd_teatro?: number;
+  has_filmoteca?: boolean;
+  qtd_filmoteca?: number;
+  has_espaco_aberto?: boolean;
+  qtd_espaco_aberto?: number;
+  has_visita_guiada?: boolean;
 }
 
 export const spaceService = {

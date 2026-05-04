@@ -70,7 +70,7 @@ export default function CadastroPublico() {
 
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.senha,
       options: {
@@ -91,6 +91,23 @@ export default function CadastroPublico() {
       }
       setLoading(false);
       return;
+    }
+
+    if (authData?.user) {
+      const { error: insertError } = await supabase.from('usuarios').insert({
+        auth_uid: authData.user.id,
+        nome: formData.nome,
+        email: formData.email,
+        perfil: 'publico',
+        telefone: formData.telefone,
+        cpf: formData.cpf,
+        ativo: true,
+        espaco_id: null
+      });
+
+      if (insertError) {
+        console.error('Erro ao criar perfil de usuário:', insertError);
+      }
     }
 
     setSuccess(true);
@@ -121,10 +138,10 @@ export default function CadastroPublico() {
             Clique no link do email para ativar sua conta.
           </p>
           <button
-            onClick={() => navigate('/login-publico')}
+            onClick={() => navigate('/agendamento-publico')}
             className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-all"
           >
-            Voltar para Login
+            Ir para Agendamento
           </button>
         </motion.div>
       </div>

@@ -13,6 +13,7 @@ import {
   Search,
   Eye,
   FileText,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAgendamentos, useDashboardAgendamentos } from '../../hooks/useAgendamentos';
@@ -177,6 +178,24 @@ export default function Agendamento() {
       });
     }
     setSelectedAgendamento(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    
+    const { error } = await supabase
+      .from('agendamentos')
+      .delete()
+      .eq('id', id);
+    
+    if (!error) {
+      refetch();
+      setSelectedAgendamento(null);
+    } else {
+      alert('Erro ao excluir agendamento: ' + error.message);
+    }
   };
 
   if (!canAccess) {
@@ -404,13 +423,22 @@ export default function Agendamento() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <button
-                          onClick={() => setSelectedAgendamento(agendamento)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
-                        >
-                          <Eye size={14} />
-                          Ver detalhes
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedAgendamento(agendamento)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                          >
+                            <Eye size={14} />
+                            Ver
+                          </button>
+                          <button
+                            onClick={() => handleDelete(agendamento.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                            title="Excluir agendamento"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -469,6 +497,7 @@ export default function Agendamento() {
           agendamento={selectedAgendamento}
           onClose={() => setSelectedAgendamento(null)}
           onStatusChange={handleStatusChange}
+          onDelete={handleDelete}
           loading={updatingStatus}
         />
       )}

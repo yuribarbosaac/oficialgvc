@@ -17,15 +17,15 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Buscar visitas ativas há mais de 4 horas
-    const fourHoursAgo = new Date();
-    fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
+    // Buscar visitas ativas há mais de 1 hora
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
     
     const { data: exceededVisits, error: fetchError } = await supabaseAdmin
       .from('visits')
       .select('id, checkin, espaco_id')
       .eq('status', 'Ativo')
-      .lt('checkin', fourHoursAgo.toISOString());
+      .lt('checkin', oneHourAgo.toISOString());
 
     if (fetchError) {
       console.error("Fetch error:", fetchError);

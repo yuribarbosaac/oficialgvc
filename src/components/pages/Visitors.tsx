@@ -112,15 +112,70 @@ export default function Visitors() {
     
     setSaving(true);
     try {
-      // TRAVA DE CHECK-IN ATIVO
-      const { data: activeVisits } = await supabase
+      let activeVisitBlocked = false;
+      let blockedVisitInfo: { nome: string; cpf: string; local: string; diffMinutes: number } | null = null;
+
+      const { data: activeVisitsById } = await supabase
         .from('visits')
-        .select('id')
+        .select('id, local, checkin')
         .eq('visitor_id', visitor.id)
         .in('status', ['Ativo', 'active']);
       
-      if (activeVisits && activeVisits.length > 0) {
-        alert("Visitante já possui check-in ativo no sistema.");
+      if (activeVisitsById && activeVisitsById.length > 0) {
+        const existingVisit = activeVisitsById[0];
+        const checkInTime = new Date(existingVisit.checkin);
+        const now = new Date();
+        const diffMinutes = Math.floor((now.getTime() - checkInTime.getTime()) / 60000);
+        
+        if (diffMinutes < 60) {
+          activeVisitBlocked = true;
+          blockedVisitInfo = {
+            nome: visitor.fullName,
+            cpf: visitor.cpf || 'Não informado',
+            local: existingVisit.local,
+            diffMinutes: 60 - diffMinutes
+          };
+        }
+      }
+
+      if (!activeVisitBlocked && visitor.cpf) {
+        const { data: visitorData } = await supabase
+          .from('visitors')
+          .select('id, full_name, cpf')
+          .eq('cpf', visitor.cpf)
+          .neq('id', visitor.id)
+          .limit(10);
+        
+        if (visitorData && visitorData.length > 0) {
+          const visitorIds = visitorData.map(v => v.id);
+          
+          const { data: otherActiveVisits } = await supabase
+            .from('visits')
+            .select('id, local, checkin, nome')
+            .in('visitor_id', visitorIds)
+            .in('status', ['Ativo', 'active']);
+          
+          if (otherActiveVisits && otherActiveVisits.length > 0) {
+            const existingVisit = otherActiveVisits[0];
+            const checkInTime = new Date(existingVisit.checkin);
+            const now = new Date();
+            const diffMinutes = Math.floor((now.getTime() - checkInTime.getTime()) / 60000);
+            
+            if (diffMinutes < 60) {
+              activeVisitBlocked = true;
+              blockedVisitInfo = {
+                nome: existingVisit.nome || visitor.fullName,
+                cpf: visitor.cpf,
+                local: existingVisit.local,
+                diffMinutes: 60 - diffMinutes
+              };
+            }
+          }
+        }
+      }
+      
+      if (activeVisitBlocked && blockedVisitInfo) {
+        alert(`⚠️ CHECK-IN BLOQUEADO\n\n📋 Nome: ${blockedVisitInfo.nome}\n🔢 CPF: ${blockedVisitInfo.cpf}\n📍 Local: ${blockedVisitInfo.local}\n⏱️ Tempo restante: ${blockedVisitInfo.diffMinutes} minuto(s)\n\nEste visitante já possui check-in ativo em outro espaço cultural.\nAguarde o tempo mínimo de 1 hora para fazer um novo check-in.`);
         setSaving(false);
         return;
       }

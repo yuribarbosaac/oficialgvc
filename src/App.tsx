@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
+import { PublicAuthProvider } from './contexts/PublicAuthContext';
 
 // Layout
 import Sidebar from './components/layout/Sidebar';
@@ -17,15 +18,16 @@ import AgendamentoPublico from './components/pages/AgendamentoPublico';
 import Reports from './components/pages/Reports';
 import SettingsPage from './components/pages/Settings';
 import Login from './components/pages/Login';
+import LoginPublico from './components/pages/LoginPublico';
+import CadastroPublico from './components/pages/CadastroPublico';
 
 // Components
 import CheckInModal from './components/modals/CheckInModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 
-export default function App() {
-  const [isCheckInOpen, setIsCheckInOpen] = useState(false);
-  const { user, loading, userData, isSuperadmin } = useAuth();
+function InternalRoutes({ onNewCheckIn }: { onNewCheckIn: () => void }) {
+  const { userData } = useAuth();
 
   useEffect(() => {
     if (userData) {
@@ -41,6 +43,34 @@ export default function App() {
     }
   }, [userData]);
 
+  return (
+    <div className="min-h-screen bg-surface font-sans selection:bg-primary/10 selection:text-primary">
+      <Sidebar onNewCheckIn={onNewCheckIn} />
+      <div className="pl-72">
+        <Header />
+        <main className="pt-16 min-h-[calc(100vh-64px)] relative">
+          <AnimatePresence mode="wait">
+            <Routes>
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/visitors" element={<ProtectedRoute><Visitors /></ProtectedRoute>} />
+              <Route path="/lockers" element={<ProtectedRoute><Lockers /></ProtectedRoute>} />
+              <Route path="/telecentro" element={<ProtectedRoute><Telecentro /></ProtectedRoute>} />
+              <Route path="/agendamento" element={<ProtectedRoute><Agendamento /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute requiredRole="coordenador"><Reports /></ProtectedRoute>} />
+              <Route path="/configuracoes" element={<ProtectedRoute requiredRole="administrador"><SettingsPage /></ProtectedRoute>} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </AnimatePresence>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [isCheckInOpen, setIsCheckInOpen] = useState(false);
+  const { user, loading, isSuperadmin } = useAuth();
+
   if (loading) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center">
@@ -52,36 +82,28 @@ export default function App() {
     );
   }
 
-  // Show login if neither Firebase user nor superadmin session
   if (!user && !isSuperadmin) {
-    return <Login />;
+    return (
+      <PublicAuthProvider>
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/login-publico" element={<LoginPublico />} />
+            <Route path="/cadastro-publico" element={<CadastroPublico />} />
+            <Route path="/agendamento-publico" element={<AgendamentoPublico />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Router>
+      </PublicAuthProvider>
+    );
   }
 
   return (
     <ErrorBoundary>
       <Router>
-        <div className="min-h-screen bg-surface font-sans selection:bg-primary/10 selection:text-primary">
-          <Sidebar onNewCheckIn={() => setIsCheckInOpen(true)} />
-          <div className="pl-72">
-            <Header />
-            <main className="pt-16 min-h-[calc(100vh-64px)] relative">
-              <AnimatePresence mode="wait">
-                <Routes>
-                  <Route path="/agendamento-publico" element={<AgendamentoPublico />} />
-                  <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                  <Route path="/visitors" element={<ProtectedRoute><Visitors /></ProtectedRoute>} />
-                  <Route path="/lockers" element={<ProtectedRoute><Lockers /></ProtectedRoute>} />
-                  <Route path="/telecentro" element={<ProtectedRoute><Telecentro /></ProtectedRoute>} />
-                  <Route path="/agendamento" element={<ProtectedRoute><Agendamento /></ProtectedRoute>} />
-                  <Route path="/reports" element={<ProtectedRoute requiredRole="coordenador"><Reports /></ProtectedRoute>} />
-                  <Route path="/configuracoes" element={<ProtectedRoute requiredRole="administrador"><SettingsPage /></ProtectedRoute>} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </AnimatePresence>
-            </main>
-          </div>
-          <CheckInModal isOpen={isCheckInOpen} onClose={() => setIsCheckInOpen(false)} />
-        </div>
+        <InternalRoutes onNewCheckIn={() => setIsCheckInOpen(true)} />
+        <CheckInModal isOpen={isCheckInOpen} onClose={() => setIsCheckInOpen(false)} />
       </Router>
     </ErrorBoundary>
   );

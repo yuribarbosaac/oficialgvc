@@ -14,10 +14,13 @@ import {
   Upload,
   Mail,
   Phone,
+  LogOut,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { spaceService, Space } from '../../services/spaceService';
 import { useCreateAgendamento } from '../../hooks/useAgendamentos';
+import { usePublicAuth } from '../../contexts/PublicAuthContext';
 
 interface FormData {
   solicitante_nome: string;
@@ -105,6 +108,8 @@ const tipoSolicitanteOptions = [
 ];
 
 export default function AgendamentoPublico() {
+  const navigate = useNavigate();
+  const { user: publicUser, logout } = usePublicAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -114,6 +119,12 @@ export default function AgendamentoPublico() {
   const [error, setError] = useState<string | null>(null);
   const [conflitos, setConflitos] = useState<any[]>([]);
   const [checkingConflict, setCheckingConflict] = useState(false);
+
+  useEffect(() => {
+    if (!publicUser) {
+      navigate('/login-publico', { replace: true });
+    }
+  }, [publicUser, navigate]);
 
   const { create, loading: creating } = useCreateAgendamento();
 
@@ -127,6 +138,17 @@ export default function AgendamentoPublico() {
     };
     loadSpaces();
   }, []);
+
+  useEffect(() => {
+    if (publicUser) {
+      setFormData((prev) => ({
+        ...prev,
+        solicitante_nome: publicUser.nome || prev.solicitante_nome,
+        solicitante_email: publicUser.email || prev.solicitante_email,
+        solicitante_telefone: publicUser.telefone || prev.solicitante_telefone,
+      }));
+    }
+  }, [publicUser]);
 
   useEffect(() => {
     if (formData.espaco_id && formData.data_pretendida && formData.horario_inicio && formData.horario_fim) {

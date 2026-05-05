@@ -4,10 +4,16 @@ import NotificationBell from './NotificationBell';
 export default function Header() {
   const { user, userData, isSuperadmin } = useAuth();
 
-  // For superadmin, use a gradient avatar instead of a photo URL
-  const avatarUrl = isSuperadmin
-    ? null
-    : (user as any)?.user_metadata?.avatar_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100&h=100";
+  const getInitials = (name: string): string => {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) {
+      return parts[0].substring(0, 2).toUpperCase();
+    }
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const initials = getInitials(userData?.nome || 'Usuário');
 
   return (
     <header className="fixed top-0 right-0 left-72 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 z-40 flex items-center justify-between px-8">
@@ -28,18 +34,8 @@ export default function Header() {
               {userData?.espacoId !== 'todos' && userData?.espacoNome ? ` • ${userData.espacoNome}` : ''}
             </p>
           </div>
-          <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-gray-100 p-0.5 cursor-pointer hover:border-primary/30 transition-all">
-            {avatarUrl ? (
-              <img 
-                src={avatarUrl} 
-                alt="User" 
-                className="w-full h-full rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
-                {userData?.nome?.charAt(0)?.toUpperCase() || 'S'}
-              </div>
-            )}
+          <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm border-2 border-gray-100">
+            {initials}
           </div>
         </div>
       </div>

@@ -11,11 +11,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Globe,
-  CheckCircle2
+  CheckCircle2,
+  Users,
+  AlertCircle
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import CheckInModal from '../modals/CheckInModal';
 import { useAuth } from '../../contexts/AuthContext';
+import { CheckinBlockedPopup } from '../ui/CheckinBlockedPopup';
+import { CheckinSuccessPopup } from '../ui/CheckinSuccessPopup';
 
 export default function Visitors() {
   const [visitors, setVisitors] = useState<Visitor[]>([]);
@@ -25,15 +29,29 @@ export default function Visitors() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [visitorToEdit, setVisitorToEdit] = useState<Visitor | null>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const [activeVisits, setActiveVisits] = useState<any[]>([]);
+  const [showBlockedPopup, setShowBlockedPopup] = useState(false);
+  const [blockedInfo, setBlockedInfo] = useState<{visitorName: string; cpf: string; currentSpace: string; checkinTime: string; remainingMinutes: number} | null>(null);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [successInfo, setSuccessInfo] = useState<{visitorName: string; space: string; checkinTime: string} | null>(null);
   
-  const { userData } = useAuth();
+  const { userData, isAdmin } = useAuth();
 
   const fetchVisitors = async () => {
     try {
+      setLoading(true);
+      // console.log('Buscando visitantes...');
       const { data, error } = await supabase.from('visitors').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
+      
+      if (error) {
+        console.error('Erro ao buscar visitantes:', error);
+        alert('Erro ao buscar visitantes: ' + error.message);
+        setVisitors([]);
+        return;
+      }
       
       const mapped = data.map(d => ({
         id: d.id,
@@ -60,6 +78,9 @@ export default function Visitors() {
 
   useEffect(() => {
     fetchVisitors();
+    if (isAdmin) {
+      fetchActiveVisits();
+    }
 
     const channel = supabase.channel('visitors-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'visitors' }, () => {
@@ -70,7 +91,7 @@ export default function Visitors() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (userData?.espacoId === 'todos') {
@@ -112,74 +133,11 @@ export default function Visitors() {
     
     setSaving(true);
     try {
-      let activeVisitBlocked = false;
-      let blockedVisitInfo: { nome: string; cpf: string; local: string; diffMinutes: number } | null = null;
+      const now = new Date();
 
-      const { data: activeVisitsById } = await supabase
-        .from('visits')
-        .select('id, local, checkin')
-        .eq('visitor_id', visitor.id)
-        .in('status', ['Ativo', 'active']);
+      console.log('Tentando inserir check-in para:', visitor.fullName);
       
-      if (activeVisitsById && activeVisitsById.length > 0) {
-        const existingVisit = activeVisitsById[0];
-        const checkInTime = new Date(existingVisit.checkin);
-        const now = new Date();
-        const diffMinutes = Math.floor((now.getTime() - checkInTime.getTime()) / 60000);
-        
-        if (diffMinutes < 60) {
-          activeVisitBlocked = true;
-          blockedVisitInfo = {
-            nome: visitor.fullName,
-            cpf: visitor.cpf || 'Não informado',
-            local: existingVisit.local,
-            diffMinutes: 60 - diffMinutes
-          };
-        }
-      }
-
-      if (!activeVisitBlocked && visitor.cpf) {
-        const { data: visitorData } = await supabase
-          .from('visitors')
-          .select('id, full_name, cpf')
-          .eq('cpf', visitor.cpf)
-          .neq('id', visitor.id)
-          .limit(10);
-        
-        if (visitorData && visitorData.length > 0) {
-          const visitorIds = visitorData.map(v => v.id);
-          
-          const { data: otherActiveVisits } = await supabase
-            .from('visits')
-            .select('id, local, checkin, nome')
-            .in('visitor_id', visitorIds)
-            .in('status', ['Ativo', 'active']);
-          
-          if (otherActiveVisits && otherActiveVisits.length > 0) {
-            const existingVisit = otherActiveVisits[0];
-            const checkInTime = new Date(existingVisit.checkin);
-            const now = new Date();
-            const diffMinutes = Math.floor((now.getTime() - checkInTime.getTime()) / 60000);
-            
-            if (diffMinutes < 60) {
-              activeVisitBlocked = true;
-              blockedVisitInfo = {
-                nome: existingVisit.nome || visitor.fullName,
-                cpf: visitor.cpf,
-                local: existingVisit.local,
-                diffMinutes: 60 - diffMinutes
-              };
-            }
-          }
-        }
-      }
-      
-      if (activeVisitBlocked && blockedVisitInfo) {
-        alert(`⚠️ CHECK-IN BLOQUEADO\n\n📋 Nome: ${blockedVisitInfo.nome}\n🔢 CPF: ${blockedVisitInfo.cpf}\n📍 Local: ${blockedVisitInfo.local}\n⏱️ Tempo restante: ${blockedVisitInfo.diffMinutes} minuto(s)\n\nEste visitante já possui check-in ativo em outro espaço cultural.\nAguarde o tempo mínimo de 1 hora para fazer um novo check-in.`);
-        setSaving(false);
-        return;
-      }
-
+      // Apenas inserir - o banco que bloqueia duplicados via trigger
       const { error } = await supabase.from('visits').insert({
         visitor_id: visitor.id,
         nome: visitor.fullName,
@@ -189,44 +147,203 @@ export default function Visitors() {
         status: 'Ativo'
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro no check-in:", error.message);
+        
+        // Erro da trigger (bloqueio)
+        if (error.message.includes('já possui check-in ativo') || error.message.includes('60 minutos')) {
+          // Buscar info do check-in ativo para mostrar
+          const { data: activeVisit } = await supabase
+            .from('visits')
+            .select('id, local, checkin')
+            .eq('visitor_id', visitor.id)
+            .eq('status', 'Ativo')
+            .limit(1);
+          
+          if (activeVisit && activeVisit.length > 0) {
+            const diffMin = Math.floor((now.getTime() - new Date(activeVisit[0].checkin).getTime()) / 60000);
+            setBlockedInfo({
+              visitorName: visitor.fullName,
+              cpf: visitor.cpf || 'Não informado',
+              currentSpace: activeVisit[0].local,
+              checkinTime: activeVisit[0].checkin,
+              remainingMinutes: 60 - diffMin
+            });
+            setShowBlockedPopup(true);
+            setSaving(false);
+            return;
+          }
+        }
+        
+        throw error;
+      }
 
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    } catch (error) {
+      console.log('Check-in realizado com sucesso!');
+      
+      // Sucesso
+      setShowSuccessPopup(true);
+      setSuccessInfo({
+        visitorName: visitor.fullName,
+        space: espacoNome || 'Entrada Principal',
+        checkinTime: now.toISOString()
+      });
+      setTimeout(() => setShowSuccessPopup(false), 4000);
+      fetchVisitors();
+    } catch (error: any) {
       console.error("Erro ao realizar checkin:", error);
+      setShowError(true);
+      setErrorMessage(error.message || 'Erro ao realizar check-in.');
+      setTimeout(() => setShowError(false), 5000);
     } finally {
       setSaving(false);
     }
   };
 
+  const handleCheckOut = async (visit: any) => {
+    if (saving) return;
+    if (!confirm(`Confirmar checkout de ${visit.nome}?`)) return;
+
+    setSaving(true);
+    try {
+      const checkoutTime = new Date().toISOString();
+      const { error } = await supabase.from('visits').update({
+        checkout: checkoutTime,
+        status: 'Concluído'
+      }).eq('id', visit.id);
+
+      if (error) throw error;
+
+      setShowSuccessPopup(true);
+      setSuccessInfo({
+        visitorName: visit.nome,
+        space: visit.local || 'Espaço Cultural',
+        checkinTime: visit.checkin
+      });
+      setTimeout(() => setShowSuccessPopup(false), 4000);
+      fetchActiveVisits();
+    } catch (error) {
+      console.error("Erro ao realizar checkout:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUndoCheckIn = async (visit: any) => {
+    if (saving) return;
+    if (!confirm(`⚠️ Desfazer check-in de ${visit.nome}?\n\nIsso irá excluir o registro de visita. O visitante poderá fazer check-in novamente.`)) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('visits').delete().eq('id', visit.id);
+
+      if (error) throw error;
+
+      setShowSuccessPopup(true);
+      setSuccessInfo({
+        visitorName: visit.nome,
+        space: visit.local || 'Espaço Cultural',
+        checkinTime: visit.checkin
+      });
+      setTimeout(() => setShowSuccessPopup(false), 3000);
+      fetchActiveVisits();
+    } catch (error) {
+      console.error("Erro ao desfazer checkin:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fetchActiveVisits = async () => {
+    try {
+      const { data } = await supabase
+        .from('visits')
+        .select('*')
+        .in('status', ['Ativo', 'active'])
+        .order('checkin', { ascending: false });
+      setActiveVisits(data || []);
+    } catch (err) {
+      console.error("Erro ao carregar visits ativas:", err);
+    }
+  };
+
   const filteredVisitors = visitors.filter(v => {
-    const searchLower = searchTerm.toLowerCase();
-    const cleanSearch = searchTerm.replace(/[^\d]/g, '');
-    const searchTokens = searchLower.split(/\s+/).filter(t => t.length > 0);
-    
-    const nameMatches = searchTokens.length > 0 && searchTokens.every(token => 
-      v.fullName.toLowerCase().includes(token)
-    );
-    
-    return (
-      (searchTokens.length === 0 || nameMatches) ||
-      (v.cpf && cleanSearch && v.cpf.includes(cleanSearch)) ||
-      (v.passport && searchLower && v.passport.toLowerCase().includes(searchLower))
-    );
-  });
+    //     // console.log('Filtrando visitor:', v.fullName, 'searchTerm:', searchTerm);
+      const searchLower = searchTerm.toLowerCase();
+      const cleanSearch = searchTerm.replace(/[^\d]/g, '');
+      const searchTokens = searchLower.split(/\s+/).filter(t => t.length > 0);
+      
+      const nameMatches = searchTokens.length > 0 && searchTokens.every(token => 
+        v.fullName.toLowerCase().includes(token)
+      );
+      
+      return (
+        (searchTokens.length === 0 || nameMatches) ||
+        (v.cpf && cleanSearch && v.cpf.includes(cleanSearch)) ||
+        (v.passport && searchLower && v.passport.toLowerCase().includes(searchLower))
+      );
+    });
+  
+  // console.log('Total visitantes:', visitors.length, 'Filtrados:', filteredVisitors.length);
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      {showSuccess && (
+      {showError && (
         <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed top-20 right-8 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-lg z-[100] flex items-center gap-3"
+          initial={{ opacity: 0, y: -20, x: 50 }}
+          animate={{ opacity: 1, y: 0, x: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className="fixed top-20 right-8 bg-red-600 text-white px-6 py-4 rounded-xl shadow-xl z-[100] flex items-center gap-3 min-w-[280px]"
         >
-          <CheckCircle2 size={20} />
-          <span className="font-bold text-sm">Check-in realizado com sucesso!</span>
+          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+            <AlertCircle size={24} />
+          </div>
+          <div>
+            <p className="font-bold text-sm">Atenção</p>
+            <p className="text-red-100 text-xs mt-0.5 whitespace-pre-line">{errorMessage}</p>
+          </div>
         </motion.div>
+      )}
+
+      {isAdmin && (
+        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Users size={20} className="text-purple-600" />
+              <h2 className="font-display font-bold text-purple-900">Check-in Admin</h2>
+              <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full font-bold">ADMIN</span>
+            </div>
+            <span className="text-sm text-purple-600 font-medium">{activeVisits.length} visita(s) ativa(s)</span>
+          </div>
+          
+          {activeVisits.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {activeVisits.map((visit) => (
+                <div key={visit.id} className="bg-white border border-purple-100 rounded-lg p-3 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">{visit.nome}</p>
+                      <p className="text-xs text-gray-500">{visit.local}</p>
+                      <p className="text-xs text-purple-600 mt-1">
+                        Check-in: {visit.checkin ? new Date(visit.checkin).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => handleCheckOut(visit)}
+                        disabled={saving}
+                        className="text-xs bg-red-600 text-white px-3 py-1 rounded font-bold hover:bg-red-700 disabled:opacity-50"
+                      >
+                        Check-Out
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 italic">Nenhum check-in ativo no momento.</p>
+          )}
+        </div>
       )}
 
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
@@ -315,11 +432,11 @@ export default function Visitors() {
                 <tr key={visitor.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 text-primary flex items-center justify-center font-bold border border-blue-50 overflow-hidden">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold border border-blue-50 overflow-hidden">
                         {visitor.photoUrl ? (
                           <img src={visitor.photoUrl} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <span>{visitor.fullName[0]}</span>
+                          <span>{visitor.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}</span>
                         )}
                       </div>
                       <div>
@@ -344,14 +461,22 @@ export default function Visitors() {
                     <p className="text-sm text-gray-900">{visitor.createdAt ? new Date(visitor.createdAt).toLocaleDateString('pt-BR') : 'Sem registro'}</p>
                     <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Membro</p>
                   </td>
-                  <td className="px-6 py-4 text-right">
+<td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                        <button 
-                        onClick={() => handleCheckIn(visitor)}
-                        disabled={saving}
-                        className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded font-bold text-[10px] uppercase hover:bg-blue-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                         onClick={() => handleCheckIn(visitor)}
+                         disabled={saving}
+                         className={`flex items-center gap-1.5 px-4 py-1.5 text-white rounded font-bold text-[10px] uppercase transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                           saving 
+                             ? 'bg-gray-400 cursor-wait' 
+                             : 'bg-primary hover:bg-blue-900 hover:scale-105 active:scale-95'
+                         }`}
                        >
-                         {saving ? '...' : 'Check-in'}
+                        {saving ? (
+                          <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          'Check-in'
+                        )}
                        </button>
                        <div className="w-px h-6 bg-gray-200 mx-1"></div>
                        <button 
@@ -385,6 +510,26 @@ export default function Visitors() {
         onClose={() => setIsModalOpen(false)} 
         visitorToEdit={visitorToEdit} 
       />
+
+      {showBlockedPopup && blockedInfo && (
+        <CheckinBlockedPopup
+          blockedInfo={blockedInfo}
+          onClose={() => {
+            setShowBlockedPopup(false);
+            setBlockedInfo(null);
+          }}
+        />
+      )}
+
+      {showSuccessPopup && successInfo && (
+        <CheckinSuccessPopup
+          info={successInfo}
+          onClose={() => {
+            setShowSuccessPopup(false);
+            setSuccessInfo(null);
+          }}
+        />
+      )}
     </div>
   );
 }

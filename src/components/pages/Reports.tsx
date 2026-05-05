@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -11,7 +11,9 @@ import {
   Clock,
   AlertCircle,
   Trash2,
-  Calendar
+  Calendar,
+  Monitor,
+  Users
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -60,6 +62,19 @@ export default function Reports() {
   const [genderData, setGenderData] = useState<{ name: string; value: number; color: string }[]>([]);
   const [ageData, setAgeData] = useState<{ name: string; value: number }[]>([]);
   const [loadingCharts, setLoadingCharts] = useState(false);
+
+  // Telecentro stats
+  const [telecentroStats, setTelecentroStats] = useState({
+    acessosHoje: 0,
+    tempoMedio: 0,
+    livres: 0,
+    emUso: 0,
+    excedidos: 0
+  });
+  const [loadingTelecentro, setLoadingTelecentro] = useState(false);
+  
+  // Dados do Telecentro para impressão
+  const [telecentroPrintData, setTelecentroPrintData] = useState<any[]>([]);
 
   // Filters State
   const [startDate, setStartDate] = useState(() => {
@@ -286,8 +301,58 @@ export default function Reports() {
     fetchGenderAndAgeData();
   }, [startDate, endDate, filterLocation]);
 
-  const handleExportExcel = () => {
-    const exportData = visits.map(v => {
+// Fetch Telecentro stats
+  const loadTelecentroData = () => {
+    setLoadingTelecentro(true);
+    (async () => {
+      try {
+        let query = supabase.from('computadores').select('*');
+        if (filterLocation && filterLocation !== 'Todos os Locais' && filterLocation !== 'todos') {
+          query = query.eq('espaco_id', filterLocation);
+        }
+        const { data: comps } = await query;
+        
+        if (!comps) {
+          setTelecentroStats({ acessosHoje: 0, tempoMedio: 0, livres: 0, emUso: 0, excedidos: 0 });
+          setTelecentroPrintData([]);
+          setLoadingTelecentro(false);
+          return;
+        }
+
+        const startDatetime = new Date(startDate + 'T00:00:00').toISOString();
+        const endDatetime = new Date(endDate + 'T23:59:59').toISOString();
+
+        const acessosPeriodo = comps.filter(c => c.horario_inicio && new Date(c.horario_inicio) >= new Date(startDatetime) && new Date(c.horario_inicio) <= new Date(endDatetime));
+        const ativos = comps.filter(c => c.status === 'Em Uso');
+        const livres = comps.filter(c => c.status === 'Livre' || !c.status).length;
+        const emUso = ativos.length;
+        const excedidos = comps.filter(c => c.status === 'Excedido').length;
+
+        const usedWithTime = comps.filter(c => c.horario_inicio && c.horario_limite);
+        let tempoMedio = 0;
+        if (usedWithTime.length > 0) {
+          const totalMinutes = usedWithTime.reduce((acc, c) => acc + (new Date(c.horario_limite).getTime() - new Date(c.horario_inicio).getTime()) / 60000, 0);
+          tempoMedio = Math.round(totalMinutes / usedWithTime.length);
+        }
+
+        setTelecentroStats({ acessosHoje: acessosPeriodo.length, tempoMedio, livres, emUso, excedidos });
+        setTelecentroPrintData(acessosPeriodo);
+      } catch (error) {
+        console.error("Erro ao carregar stats do telecentro:", error);
+      } finally {
+        setLoadingTelecentro(false);
+      }
+    })();
+  };
+
+  // Carregar Telecentro quando filtros mudam
+  useEffect(() => {
+    loadTelecentroData();
+  }, [startDate, endDate, filterLocation]);
+
+  const handleExportExcel = async () => {
+    // Dados de Visitantes
+    const visitData = visits.map(v => {
       const status = v.status as string;
       return {
         'ID Registro': `V-${v.id.slice(0, 4).toUpperCase()}`,
@@ -295,21 +360,55 @@ export default function Reports() {
         'Perfil': traduzirPerfil(v.perfil),
         'Local de Acesso': v.local,
         'Horário Entrada': v.checkin ? format(new Date(v.checkin), 'dd/MM/yyyy HH:mm') : 'N/A',
-        'Horário Saída': v.checkout ? format(new Date(v.checkout), 'dd/MM/yyyy HH:mm') : 'Em curso',
-        'Situação': status === 'Ativo' || status === 'active' ? 'Em curso' : (status === 'Concluído' || status === 'completed' ? 'Encerrado' : status)
+        'Horário Saída': v.checkout ? format(new Date(v.checkout), 'dd/MM/yyyy HH:mm') : 'Pendente',
+        'Situação': status === 'Ativo' || status === 'active' ? 'ENTRADA' : (status === 'Concluído' || status === 'completed' || status === 'Excedido' ? 'SAÍDA' : status)
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    
-    const wscols = [
+    const wsVisits = XLSX.utils.json_to_sheet(visitData);
+    wsVisits['!cols'] = [
       {wch: 12}, {wch: 35}, {wch: 15}, {wch: 25}, {wch: 20}, {wch: 20}, {wch: 15}
     ];
-    ws['!cols'] = wscols;
+
+    // Dados do Telecentro
+    let telecentroData: any[] = [];
+    try {
+      let query = supabase.from('computadores').select('*');
+      if (filterLocation && filterLocation !== 'Todos os Locais' && filterLocation !== 'todos') {
+        query = query.eq('espaco_id', filterLocation);
+      }
+      const { data: comps } = await query;
+
+      if (comps && comps.length > 0) {
+        const startDatetime = new Date(startDate + 'T00:00:00').toISOString();
+        const endDatetime = new Date(endDate + 'T23:59:59').toISOString();
+
+        telecentroData = comps
+          .filter(c => c.horario_inicio && new Date(c.horario_inicio) >= new Date(startDatetime) && new Date(c.horario_inicio) <= new Date(endDatetime))
+          .map(c => ({
+            'PC': c.numero,
+            'Usuário': c.usuario_nome || c.usuarioNome || '-',
+            'Espaço': c.espaco_nome || c.espacoNome || '-',
+            'Início': c.horario_inicio ? format(new Date(c.horario_inicio), 'dd/MM/yyyy HH:mm') : '-',
+            'Término': c.horario_limite ? format(new Date(c.horario_limite), 'dd/MM/yyyy HH:mm') : '-',
+            'Status': c.status || 'Desconhecido'
+          }));
+      }
+    } catch (e) {
+      console.error("Erro ao buscar dados do Telecentro:", e);
+    }
+
+    const wsTelecentro = XLSX.utils.json_to_sheet(telecentroData);
+    wsTelecentro['!cols'] = [
+      {wch: 8}, {wch: 30}, {wch: 25}, {wch: 20}, {wch: 20}, {wch: 15}
+    ];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Relatório de Visitas");
-    XLSX.writeFile(wb, `relatorio-visitas-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, wsVisits, "Visitantes");
+    if (telecentroData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, wsTelecentro, "Telecentro");
+    }
+    XLSX.writeFile(wb, `relatorio-gvc-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
   const handleExportPDF = () => {
@@ -374,6 +473,21 @@ export default function Reports() {
     return format(date, 'HH:mm');
   };
 
+  const getInitials = (name: string) => {
+    if (!name) return '?';
+    const parts = name.split(' ').filter(p => p.length > 0);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0]?.slice(0, 2).toUpperCase() || '?';
+  };
+
+  const formatVisitDateTime = (timestamp: any) => {
+    if (!timestamp) return '-';
+    const date = new Date(timestamp);
+    return format(date, 'dd/MM HH:mm');
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Ativo':
@@ -417,7 +531,7 @@ export default function Reports() {
       </div>
 
       {/* Filters Area */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-8 shadow-sm">
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-left">
           <div>
             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Data Inicial</label>
@@ -474,11 +588,49 @@ export default function Reports() {
           </div>
           <div className="flex items-end lg:col-span-1">
             <button 
-              onClick={fetchVisits}
+              onClick={() => {
+                fetchVisits();
+                loadTelecentroData();
+              }}
               className="w-full bg-primary text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-widest hover:bg-primary-dark transition-all flex items-center justify-center gap-2"
             >
               <Filter size={16} /> Aplicar Filtros
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Telecentro Stats */}
+      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-xl p-4 mb-6 no-print">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+            <Monitor className="text-indigo-600" size={18} />
+          </div>
+          <div>
+            <h3 className="font-bold text-indigo-900 text-sm">Telecentro</h3>
+            <p className="text-xs text-indigo-600">Estatísticas em tempo real</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="bg-white rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-gray-900">{loadingTelecentro ? '...' : telecentroStats.acessosHoje}</p>
+            <p className="text-xs text-gray-500">Acessos (Período)</p>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-blue-600">{loadingTelecentro ? '...' : telecentroStats.emUso}</p>
+            <p className="text-xs text-gray-500">Em Uso</p>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-emerald-600">{loadingTelecentro ? '...' : telecentroStats.livres}</p>
+            <p className="text-xs text-gray-500">Livres</p>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-red-500">{loadingTelecentro ? '...' : telecentroStats.excedidos}</p>
+            <p className="text-xs text-gray-500">Excedidos</p>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-indigo-600">{loadingTelecentro ? '...' : `${telecentroStats.tempoMedio}min`}</p>
+            <p className="text-xs text-gray-500">Tempo Médio</p>
           </div>
         </div>
       </div>
@@ -515,13 +667,13 @@ export default function Reports() {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">ID Registro</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Nome</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Perfil</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Local</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Horário de Entrada</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Status</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right no-print">Ações</th>
+                <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">ID</th>
+                <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Visitante</th>
+                <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Perfil</th>
+                <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Local</th>
+                <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Entrada / Saída</th>
+                <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left">Status</th>
+                <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right no-print">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 font-mono">
@@ -542,8 +694,15 @@ export default function Reports() {
                       exit={{ opacity: 0 }}
                       className="hover:bg-gray-50/50 transition-colors text-sm"
                     >
-                      <td className="px-6 py-4 text-gray-400 text-xs">V-{visit.id.slice(0, 4).toUpperCase()}</td>
-                      <td className="px-6 py-4 font-sans font-semibold text-gray-900">{visit.nome}</td>
+                      <td className="px-4 py-4 text-gray-400 text-xs">V-{visit.id.slice(0, 4).toUpperCase()}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                            {getInitials(visit.nome)}
+                          </div>
+                          <span className="font-sans font-semibold text-gray-900">{visit.nome}</span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4">
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700">
                           {traduzirPerfil(visit.perfil)}
@@ -551,12 +710,20 @@ export default function Reports() {
                       </td>
                       <td className="px-6 py-4 font-sans text-gray-500">{visit.local}</td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <p className="text-gray-900 font-bold">{formatVisitTime(visit.checkin)}</p>
-                          <span className="text-gray-300">→</span>
-                          <p className={`text-[10px] font-bold ${!visit.checkout ? 'text-primary animate-pulse italic' : 'text-gray-400'}`}>
-                            {visit.checkout ? formatVisitTime(visit.checkout) : 'EM CURSO'}
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-gray-900 font-bold text-xs">
+                            {visit.checkin ? formatVisitDateTime(visit.checkin) : '-'}
                           </p>
+                          {visit.checkout && (
+                            <p className="text-gray-400 text-xs">
+                              → {formatVisitDateTime(visit.checkout)}
+                            </p>
+                          )}
+                          {!visit.checkout && (
+                            <p className="text-primary animate-pulse italic text-xs font-bold">
+                              EM CURSO
+                            </p>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -564,7 +731,7 @@ export default function Reports() {
                           <div className={`w-1.5 h-1.5 rounded-full ${
                              (visit.status as string) === 'Ativo' || (visit.status as string) === 'active' ? 'bg-emerald-500' : ((visit.status as string) === 'Concluído' || (visit.status as string) === 'completed' ? 'bg-blue-500' : 'bg-red-500')
                           }`} />
-                          {(visit.status as string) === 'Ativo' || (visit.status as string) === 'active' ? 'Em curso' : ((visit.status as string) === 'Concluído' || (visit.status as string) === 'completed' ? 'Encerrado' : visit.status)}
+                          {(visit.status as string) === 'Ativo' || (visit.status as string) === 'active' ? 'ENTRADA' : ((visit.status as string) === 'Concluído' || (visit.status as string) === 'completed' ? 'SAÍDA' : visit.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right no-print">
@@ -615,8 +782,42 @@ export default function Reports() {
              >
                Próximo <ChevronRight size={16} />
              </button>
-           </div>
+</div>
         </div>
+
+        {/* Telecentro Section - Print Only */}
+        {telecentroPrintData.length > 0 && (
+          <div className="print-only mt-8">
+            <div className="mb-6 text-center border-b pb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Telecentro - Uso de Computadores</h2>
+              <p className="text-gray-500 text-sm">Período: {startDate} a {endDate}</p>
+            </div>
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-2 text-xs font-bold text-gray-500 uppercase">PC</th>
+                  <th className="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Usuário</th>
+                  <th className="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Espaço</th>
+                  <th className="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Início</th>
+                  <th className="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Término</th>
+                  <th className="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {telecentroPrintData.map((c, i) => (
+                  <tr key={i}>
+                    <td className="px-4 py-2 text-sm">{c.numero}</td>
+                    <td className="px-4 py-2 text-sm">{c.usuario_nome || c.usuarioNome || '-'}</td>
+                    <td className="px-4 py-2 text-sm">{c.espaco_nome || c.espacoNome || '-'}</td>
+                    <td className="px-4 py-2 text-sm">{c.horario_inicio ? format(new Date(c.horario_inicio), 'dd/MM/yyyy HH:mm') : '-'}</td>
+                    <td className="px-4 py-2 text-sm">{c.horario_limite ? format(new Date(c.horario_limite), 'dd/MM/yyyy HH:mm') : '-'}</td>
+                    <td className="px-4 py-2 text-sm">{c.status || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Novos Gráficos: Gênero e Faixa Etária */}

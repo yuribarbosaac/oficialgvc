@@ -114,23 +114,26 @@ export default function UserModal({ isOpen, onClose, userToEdit }: UserModalProp
         nome: formData.nome,
         email: formData.email,
         perfil: formData.perfil,
-        espaco_id: formData.espacoId === 'todos' ? null : formData.espacoId,
+        espaco_id: formData.espacoId && formData.espacoId !== 'todos' ? formData.espacoId : null,
         espaco_nome: formData.espacoId === 'todos' ? 'TODOS OS ESPAÇOS' : (selectedEspaco ? selectedEspaco.nome : 'Global'),
-        ativo: formData.ativo,
       };
 
       if (userToEdit) {
-        await supabase.from('usuarios').update(dataToSave).eq('id', userToEdit.id);
+        const { error: updateError } = await supabase.from('usuarios').update(dataToSave).eq('id', userToEdit.id);
+        
+        if (updateError) {
+          console.error('Update error:', updateError);
+          alert('Erro ao atualizar: ' + updateError.message);
+          setLoading(false);
+          return;
+        }
         
         // Se a senha foi alterada e for o próprio usuário, atualizamos com updateUser
-        // Caso contrário (admin atualizando outro), precisaria do Supabase Admin API
         if (changePassword && currentAdmin && currentAdmin.id === userToEdit.id) {
           await supabase.auth.updateUser({ password: formData.senha });
         } else if (changePassword) {
-          alert("Atenção: A atualização de senha para outros usuários via painel pode exigir a Supabase Admin API se a política de segurança não permitir. Verifique as configurações do projeto.");
+          alert("Atenção: A atualização de senha para outros usuários via painel pode exigir a Supabase Admin API.");
         }
-
-        await auditService.log({ acao: "editou_usuario", detalhes: `Editou usuário ${formData.nome} (${formData.perfil})`, entidadeId: userToEdit.id, userProfile: currentAdmin });
       } else {
         const { data: responseData, error: fnError } = await supabase.functions.invoke('create-user', {
           body: {

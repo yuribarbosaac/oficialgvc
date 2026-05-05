@@ -14,7 +14,7 @@ import {
   Upload,
   Mail,
   Phone,
-  LogOut,
+  LogIn,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -806,6 +806,15 @@ export default function AgendamentoPublico() {
           <p className="text-slate-600 max-w-2xl mx-auto">
             Solicite o uso de auditórios, salas de reunião, áreas externas e visitas guiadas nos espaços culturais da FEM.
           </p>
+          <div className="mt-4 flex items-center justify-center gap-4">
+            <button
+              onClick={() => navigate('/login')}
+              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-2"
+            >
+              <LogIn size={16} />
+              Acesso restrito (Login GVC)
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
@@ -1102,7 +1111,7 @@ export default function AgendamentoPublico() {
                         <option value="">Selecione o tipo</option>
                         {getAvailableSpaceTypes(formData.espaco_id, spaces).map((opt) => (
                           <option key={opt.value} value={opt.value}>
-                            {opt.label} {opt.capacidade > 0 ? `(até ${opt.capacidade} lugares)` : ''}
+                            {opt.label} {Number(opt.capacidade) > 0 ? `(até ${opt.capacidade} lugares)` : ''}
                           </option>
                         ))}
                       </select>

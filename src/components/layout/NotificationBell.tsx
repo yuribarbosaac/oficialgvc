@@ -11,11 +11,13 @@ export default function NotificationBell() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { userData } = useAuth();
   
+  const isAdmin = userData?.perfil === 'administrador';
+  
   useEffect(() => {
-    if (!userData || userData.perfil === 'funcionario') return;
+    if (!isAdmin) return;
     
     const fetchNotifications = async () => {
-      const { data, error } = await supabase.from('auditoria')
+      const { data } = await supabase.from('auditoria')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(5);
@@ -38,7 +40,7 @@ export default function NotificationBell() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userData]);
+  }, [isAdmin]);
   
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -58,7 +60,7 @@ export default function NotificationBell() {
     }
   };
 
-  if (!userData || userData.perfil === 'funcionario') return null;
+  if (!isAdmin) return null;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -97,7 +99,7 @@ export default function NotificationBell() {
                     let dateStr = '';
                     if (notif.created_at) {
                       const date = new Date(notif.created_at);
-                      const diff = Math.floor((new Date().getTime() - date.getTime()) / 60000); // in minutes
+                      const diff = Math.floor((new Date().getTime() - date.getTime()) / 60000);
                       if (diff < 1) dateStr = 'Agora mesmo';
                       else if (diff < 60) dateStr = `há ${diff} min`;
                       else if (diff < 1440) dateStr = `há ${Math.floor(diff/60)} horas`;
@@ -130,7 +132,7 @@ export default function NotificationBell() {
             </div>
             <div className="p-3 border-t border-slate-50 bg-slate-50/50">
                <button type="button" className="text-xs font-bold text-primary w-full text-center hover:text-blue-700 transition-colors">
-                 Ver registro completo
+                  Ver registro completo
                </button>
             </div>
           </motion.div>

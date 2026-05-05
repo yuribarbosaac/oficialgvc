@@ -22,7 +22,7 @@ interface SidebarProps {
 
 export default function Sidebar({ onNewCheckIn }: SidebarProps) {
   const location = useLocation();
-  const { hasPermission, userData, spaceConfig, logout } = useAuth();
+  const { hasPermission, userData, spaceConfig, logout, isAdmin, isCoordinator, isStaff } = useAuth();
 
   const navItems = [
     { icon: LayoutDashboard, label: 'Painel', path: '/' },
@@ -82,13 +82,15 @@ export default function Sidebar({ onNewCheckIn }: SidebarProps) {
       </div>
 
       <div className="px-4 mb-6">
-        <button 
-          onClick={onNewCheckIn}
-          className="w-full flex items-center justify-center gap-2 bg-primary text-white py-3 rounded-xl font-bold hover:bg-blue-900 transition-all shadow-lg shadow-blue-900/10 active:scale-95"
-        >
-          <Plus size={18} />
-          Novo Check-in
-        </button>
+        {(isAdmin || isCoordinator || isStaff) && (
+          <button 
+            onClick={onNewCheckIn}
+            className="w-full flex items-center justify-center gap-2 bg-primary text-white py-3 rounded-xl font-bold hover:bg-blue-900 transition-all shadow-lg shadow-blue-900/10 active:scale-95"
+          >
+            <Plus size={18} />
+            Novo Check-in
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 px-2 space-y-1 overflow-y-auto">

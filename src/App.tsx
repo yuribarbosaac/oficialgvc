@@ -3,6 +3,7 @@ import { AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { PublicAuthProvider } from './contexts/PublicAuthContext';
+import { useAutoCheckout } from './hooks/useAutoCheckout';
 
 // Layout
 import Sidebar from './components/layout/Sidebar';
@@ -29,6 +30,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 function InternalRoutes({ onNewCheckIn }: { onNewCheckIn: () => void }) {
   const { userData } = useAuth();
+  
+  useAutoCheckout();
 
   useEffect(() => {
     if (userData) {
@@ -95,8 +98,8 @@ export default function App() {
             <Route path="/cadastro-publico" element={<CadastroPublico />} />
             <Route path="/agendamento-publico" element={<AgendamentoPublico />} />
             <Route path="/termo-compromisso" element={<TermoCompromisso />} />
-            <Route path="/" element={<Navigate to="/agendamento-publico" replace />} />
-            <Route path="*" element={<Navigate to="/agendamento-publico" replace />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </Router>
       </PublicAuthProvider>

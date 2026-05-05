@@ -14,6 +14,7 @@ import {
   Unlock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import Footer from '../layout/PageFooter';
 
 interface Computador {
   id: string;
@@ -507,18 +508,7 @@ export default function Telecentro() {
         )}
       </AnimatePresence>
 
-      <div className="mt-12 p-6 bg-slate-900 rounded-2xl border border-slate-800 flex items-start gap-4">
-        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0">
-          <AlertCircle className="text-primary" />
-        </div>
-        <div>
-          <h4 className="font-bold text-white uppercase tracking-widest text-xs mb-1">Configuração de Segurança</h4>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Painel de controle de computadores sincronizado em tempo real. O limite padrão de tempo para cada terminal é de {limiteMaximoMinutos} minutos. 
-            Você pode liberar o computador a qualquer momento.
-          </p>
-        </div>
-      </div>
+      <Footer type="telecentro" />
     </div>
   );
 }

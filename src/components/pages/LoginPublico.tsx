@@ -26,7 +26,7 @@ export default function LoginPublico() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/agendamento-publico`,
+        redirectTo: `${window.location.origin}/agendamento/formulario`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -57,7 +57,7 @@ export default function LoginPublico() {
       }
       setLoading(false);
     } else {
-      navigate('/agendamento-publico');
+      navigate('/agendamento/formulario');
     }
   };
 
@@ -407,7 +407,7 @@ export default function LoginPublico() {
           >
             <div className="w-2 h-2 bg-emerald-500 rounded-full" />
             <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">
-              Acesso Seguro • FEM GVC
+              Acesso Seguro • FEM GAC
             </p>
           </motion.div>
         </div>

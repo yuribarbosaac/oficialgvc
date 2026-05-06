@@ -14,7 +14,10 @@ import {
   Upload,
   Mail,
   Phone,
-  LogIn,
+  LogOut,
+  Trash2,
+  Shield,
+  Smartphone,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -23,6 +26,11 @@ import { useCreateAgendamento } from '../../hooks/useAgendamentos';
 import { usePublicAuth } from '../../contexts/PublicAuthContext';
 import { validateCPF, validateCNPJ, formatCPF, formatCNPJ, formatPhone } from '../../lib/validators';
 import { draftService } from '../../services/draftService';
+import { getPublicIP } from '../../utils/network';
+import { getBrowserFingerprint } from '../../utils/browser';
+import { getLegalTimestamp } from '../../utils/datetime';
+import { generateDocumentHash } from '../../utils/crypto';
+import { validateCPF as validateCPFReceita } from '../../services/cpfService';
 
 interface FormData {
   solicitante_nome: string;
@@ -145,6 +153,13 @@ const tipoSolicitanteOptions = [
 export default function AgendamentoPublico() {
   const navigate = useNavigate();
   const { user: publicUser, logout, publicLoading } = usePublicAuth();
+
+  useEffect(() => {
+    if (!publicLoading && !publicUser) {
+      navigate('/agendamento');
+    }
+  }, [publicUser, publicLoading, navigate]);
+
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -153,6 +168,12 @@ export default function AgendamentoPublico() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflitos, setConflitos] = useState<any[]>([]);
+  const [assinaturaInfo, setAssinaturaInfo] = useState<{
+    ip: string;
+    fingerprint: object;
+    timestamp: string;
+    hash: string;
+  } | null>(null);
   const [checkingConflict, setCheckingConflict] = useState(false);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
@@ -441,22 +462,26 @@ export default function AgendamentoPublico() {
     const fimMin = toMinutes(formData.horario_fim);
     const intervaloMin = 10; // 10 minutos de folga
     
-    // Buscar agendamentos existentes no espaço e data
+    // Busca agendamentos existentes no espaço, data e tipo de evento
     const { data } = await supabase
       .from('agendamentos')
-      .select('id, horario_inicio, horario_fim, espaco_solicitado')
+      .select('id, horario_inicio, horario_fim, espaco_solicitado, tipo_espaco, natureza_evento')
       .eq('espaco_id', formData.espaco_id)
       .eq('data_pretendida', formData.data_pretendida)
       .neq('status', 'rejeitado')
       .neq('status', 'cancelado');
     
-    // Verificar conflitos com 10min de folga
+    // Verificar conflitos com 10min de folga, considerando mesmo tipo_espaco e natureza_evento
     const conflitosEncontrados = (data || []).filter((ag: any) => {
+      // Só conflita se for MESMO tipo de espaço e MESMA natureza do evento
+      if (ag.tipo_espaco !== formData.tipo_espaco || ag.natureza_evento !== formData.natureza_evento) {
+        return false;
+      }
+      
       const agInicio = toMinutes(ag.horario_inicio);
       const agFim = toMinutes(ag.horario_fim);
       
       // Verificar sobreposição com 10min de folga
-      // Novo agendamento: [inicioMin - intervaloMin, fimMin + intervaloMin]
       const novoInicio = inicioMin - intervaloMin;
       const novoFim = fimMin + intervaloMin;
       
@@ -520,8 +545,22 @@ export default function AgendamentoPublico() {
     setLoading(true);
     setError(null);
 
+    const cpfDoc = formData.solicitante_documento.replace(/\D/g, '');
+    let cpfValidation: any = null;
+
     try {
       const selectedSpace = spaces.find((s) => s.id === formData.espaco_id);
+
+      // Validar CPF na Receita Federal
+      if (formData.tipo_solicitante === 'cpf' && cpfDoc.length === 11) {
+        cpfValidation = await validateCPFReceita(cpfDoc);
+        if (!cpfValidation.valid) {
+          setError(`CPF inválido: ${cpfValidation.message}. Verifique e tente novamente.`);
+          setLoading(false);
+          return;
+        }
+        console.log('CPF validado na Receita:', cpfValidation);
+      }
 
       // Usar Edge Function para submissão pública
       const { data, error: createError } = await supabase.functions.invoke('public-submit-agendamento', {
@@ -564,6 +603,38 @@ export default function AgendamentoPublico() {
           });
         } catch (e) {
           console.error('Erro ao enviar email:', e);
+        }
+
+        // Salvar assinatura digital blindada
+        if (data?.data?.id && assinaturaInfo) {
+          try {
+            const termoCompleto = JSON.stringify({
+              termo_compromisso: formData.termo_aceito,
+              responsabilidade_evento: formData.responsabhilidade_evento,
+              danos_patrimonio: formData.danos_patrimonio,
+              respeito_lotacao: formData.respeito_lotacao,
+            });
+            const termoHash = await generateDocumentHash(termoCompleto);
+
+            await supabase.from('assinaturas_digitais').insert({
+              visitor_id: null,
+              nome_assinante: formData.solicitante_nome,
+              cpf_assinante: cpfDoc,
+              tipo_documento: 'agendamento',
+              documento_id: data.data.id,
+              documento_hash: assinaturaInfo.hash,
+              ip_publico: assinaturaInfo.ip,
+              user_agent: navigator.userAgent,
+              browser_fingerprint: JSON.stringify(assinaturaInfo.fingerprint),
+              cpf_validado: formData.tipo_solicitante === 'cpf' ? cpfValidation?.valid : null,
+              cpf_status: cpfValidation?.status || null,
+              termo_conteudo: termoCompleto,
+              termo_hash: termoHash,
+            });
+            console.log('Assinatura digital salva');
+          } catch (e) {
+            console.error('Erro ao salvar assinatura:', e);
+          }
         }
       }
 
@@ -794,108 +865,122 @@ export default function AgendamentoPublico() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="p-3 bg-indigo-600 text-white rounded-2xl">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-3 mb-3">
+            <div className="p-3 bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-2xl shadow-lg">
               <CalendarDays size={28} />
             </div>
-            <h1 className="text-4xl font-display font-bold text-slate-900">
+            <h1 className="text-3xl font-display font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
               Agendamento de Espaços
             </h1>
           </div>
-          <p className="text-slate-600 max-w-2xl mx-auto">
+          <p className="text-slate-500 text-sm mt-1">
             Solicite o uso de auditórios, salas de reunião, áreas externas e visitas guiadas nos espaços culturais da FEM.
           </p>
-          <div className="mt-4 flex items-center justify-center gap-4">
-            <button
-              onClick={() => navigate('/login')}
-              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-2"
-            >
-              <LogIn size={16} />
-              Acesso restrito (Login GVC)
-            </button>
-          </div>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-white">
-                <p className="text-sm font-medium opacity-90">Progresso do Agendamento</p>
-                <p className="text-2xl font-bold">{Math.round((currentStep / 6) * 100)}%</p>
+<div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+          <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 p-6 relative overflow-hidden">
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIgZmlsbD0id2hpdGUiIGZpbGwtb3BhY2l0eT0iMC4xIi8+PC9zdmc+')] opacity-30" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-white">
+                  <p className="text-sm font-medium opacity-90">Agendamento</p>
+                  <p className="text-3xl font-bold">{Math.round((currentStep / 6) * 100)}%</p>
+                </div>
+                <div className="text-white text-right">
+                  <p className="text-sm font-medium opacity-90">Etapa {currentStep} de 6</p>
+                  <p className="text-lg font-bold">{steps[currentStep - 1]?.title}</p>
+                </div>
               </div>
-              <div className="text-white text-right">
-                <p className="text-sm font-medium opacity-90">Etapa {currentStep} de 6</p>
-                <p className="text-lg font-bold">{steps[currentStep - 1]?.title}</p>
-              </div>
-            </div>
-            <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
-              <div 
-                className="bg-white h-full rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${(currentStep / 6) * 100}%` }}
-              />
-            </div>
-            <div className="mt-4 flex items-center justify-between text-white text-sm">
-              <span>
-                {currentStep === 1 && "📋 Preencha seus dados pessoais"}
-                {currentStep === 2 && "🏛️ Escolha o espaço cultural"}
-                {currentStep === 3 && "📅 Defina data e horário"}
-                {currentStep === 4 && "📝 Descreva seu evento"}
-                {currentStep === 5 && "📄 Leia e aceite os Termos"}
-              {currentStep === 6 && "✅ Revise e confirme"}
-              </span>
-              <div className="flex items-center gap-3">
-                <span className="text-xs opacity-75">{6 - currentStep} etapa(s) restante(s)</span>
-                <button 
-                  type="button"
-                  onClick={clearDraft}
-                  className="text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded transition-colors"
-                  title="Limpar rascunho"
+              <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-yellow-400 to-emerald-400 h-full rounded-full transition-all duration-500 ease-out relative overflow-hidden"
+                  style={{ width: `${(currentStep / 6) * 100}%` }}
                 >
-                  🗑️ Limpar
-                </button>
+                  <div className="absolute inset-0 bg-white/30 animate-pulse" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between text-white text-sm">
+                <span className="font-medium">
+                  {currentStep === 1 && "📋 Preencha seus dados pessoais"}
+                  {currentStep === 2 && "🏛️ Escolha o espaço cultural"}
+                  {currentStep === 3 && "📅 Defina data e horário"}
+                  {currentStep === 4 && "📝 Descreva seu evento"}
+                  {currentStep === 5 && "📄 Leia e aceite os Termos"}
+                {currentStep === 6 && "✅ Revise e confirme"}
+                </span>
+                {currentStep === 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logout();
+                        navigate('/agendamento');
+                      }}
+                      className="flex items-center gap-1 text-xs bg-white/20 hover:bg-white/40 px-3 py-1.5 rounded-full transition-all hover:scale-105"
+                    >
+                      <LogOut size={12} />
+                      Trocar conta
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={clearDraft}
+                      className="flex items-center gap-1 text-xs bg-white/20 hover:bg-white/40 px-3 py-1.5 rounded-full transition-all hover:scale-105"
+                      title="Limpar formulário"
+                    >
+                      <Trash2 size={12} />
+                      Limpar
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-          <div className="bg-slate-50 border-b border-slate-100 p-6">
-            <div className="flex items-center justify-between">
+          <div className="bg-slate-50 border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center justify-between gap-2">
               {steps.map((step, index) => {
                 const Icon = step.icon;
                 const isActive = currentStep === step.id;
                 const isCompleted = currentStep > step.id;
+                const isClickable = currentStep > 1 && isCompleted;
                 return (
                   <React.Fragment key={step.id}>
                     <div 
-                      className={`flex flex-col items-center cursor-pointer transition-transform hover:scale-105 ${isActive ? '' : 'opacity-70'}`}
+                      className={`flex flex-col items-center cursor-pointer transition-all hover:scale-105 ${
+                        isActive ? 'scale-110' : isClickable ? 'opacity-100 hover:text-indigo-600' : 'opacity-50'
+                      }`}
                       onClick={() => {
-                        if (currentStep > 1 && isCompleted) {
+                        if (isClickable) {
                           setCurrentStep(step.id);
                         }
                       }}
                     >
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-lg ${
                           isCompleted
-                            ? 'bg-emerald-500 text-white'
+                            ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white'
                             : isActive
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-slate-200 text-slate-500'
+                            ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-indigo-500/30'
+                            : 'bg-white text-slate-400'
                         }`}
                       >
                         {isCompleted ? <CheckCircle size={20} /> : <Icon size={20} />}
                       </div>
-                      <span className={`text-xs mt-2 font-medium ${isActive ? 'text-indigo-600' : 'text-slate-500'}`}>
+                      <span className={`text-xs mt-1.5 font-medium text-center hidden lg:block ${isActive ? 'text-indigo-600' : 'text-slate-500'}`}>
                         {step.title}
                       </span>
                     </div>
                     {index < steps.length - 1 && (
-                      <div className={`flex-1 h-1 mx-2 rounded ${isCompleted ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                      <div className={`flex-1 h-1 rounded-full transition-colors ${
+                        isCompleted ? 'bg-emerald-500' : 'bg-slate-200'
+                      }`} />
                     )}
                   </React.Fragment>
                 );
               })}
             </div>
-          </div>
+</div>
 
           <div className="p-8">
             {error && (
@@ -1369,12 +1454,20 @@ export default function AgendamentoPublico() {
                       <input
                         type="checkbox"
                         checked={formData.termo_aceito}
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           updateFormData('termo_aceito', e.target.checked);
                           if (e.target.checked) {
-                            const now = new Date();
-                            updateFormData('termo_compromisso_data', now.toISOString());
-                            updateFormData('termo_compromisso_ip', '192.168.1.1');
+                            const [ip, fingerprint, timestamp] = await Promise.all([
+                              getPublicIP(),
+                              getBrowserFingerprint(),
+                              getLegalTimestamp(),
+                            ]);
+                            const hash = await generateDocumentHash(
+                              formData.solicitante_nome + formData.solicitante_documento + timestamp.iso
+                            );
+                            setAssinaturaInfo({ ip, fingerprint, timestamp: timestamp.brasilia, hash });
+                            updateFormData('termo_compromisso_data', timestamp.iso);
+                            updateFormData('termo_compromisso_ip', ip);
                           }
                         }}
                         className="mt-1 w-5 h-5 text-red-600 rounded focus:ring-red-500"
@@ -1429,18 +1522,46 @@ export default function AgendamentoPublico() {
                 {formData.termo_aceito && formData.responsabhilidade_evento && formData.danos_patrimonio && formData.respeito_lotacao && (
                   <div className="bg-green-50 border border-green-300 rounded-xl p-6">
                     <h3 className="font-semibold text-green-900 mb-4 flex items-center gap-2">
-                      ✍️ Assinatura Digital
+                      <Shield size={20} />
+                      Assinatura Digital Blindada
                     </h3>
                     <div className="space-y-4">
                       <div className="p-4 bg-white border border-green-300 rounded-lg">
-                        <p className="text-sm text-slate-600 mb-2"><strong>Tipo de Assinatura:</strong> Digital (ACEITE ELETRÔNICO)</p>
-                        <p className="text-sm text-slate-600 mb-2"><strong>Assinante:</strong> {formData.tipo_solicitante === 'pessoa_fisica' ? formData.solicitante_nome : formData.razao_social}</p>
-                        <p className="text-sm text-slate-600 mb-2"><strong>CPF/CNPJ:</strong> {formData.solicitante_documento}</p>
-                        <p className="text-sm text-slate-600 mb-2"><strong>Data/Hora:</strong> {formData.termo_compromisso_data ? new Date(formData.termo_compromisso_data).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}</p>
-                        <p className="text-sm text-slate-600"><strong>IP:</strong> {formData.termo_compromisso_ip}</p>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-slate-500">Tipo de Assinatura</p>
+                            <p className="font-medium">Digital (ACEITE ELETRÔNICO)</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Assinante</p>
+                            <p className="font-medium">{formData.tipo_solicitante === 'pessoa_fisica' ? formData.solicitante_nome : formData.razao_social}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">CPF/CNPJ</p>
+                            <p className="font-medium">{formData.solicitante_documento}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Data/Hora (Brasília)</p>
+                            <p className="font-medium">{assinaturaInfo?.timestamp || formData.termo_compromisso_data ? new Date(formData.termo_compromisso_data || Date.now()).toLocaleString('pt-BR') : '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">IP Público</p>
+                            <p className="font-medium flex items-center gap-1">
+                              <Smartphone size={12} />
+                              {assinaturaInfo?.ip || formData.termo_compromisso_ip || '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Hash SHA-256</p>
+                            <p className="font-mono text-xs text-slate-600 truncate">
+                              {assinaturaInfo?.hash?.substring(0, 20) || '-'}...
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-500">
-                        * A assinatura digital possui valor jurídico conforme Lei nº 11.977/2008 e MP nº 2.200-2/2001.
+                      <p className="text-xs text-slate-500 flex items-center gap-1">
+                        <Shield size={12} />
+                        Assinatura eletrônica com valor jurídico conforme Lei nº 11.977/2008, MP nº 2.200-2/2001 e Lei nº 14.063/2020. IP público e hash criptográfico garantidos.
                       </p>
                     </div>
                   </div>
@@ -1537,7 +1658,7 @@ export default function AgendamentoPublico() {
             <button
               onClick={() => setCurrentStep((s) => Math.max(1, s - 1))}
               disabled={currentStep === 1}
-              className="flex items-center gap-2 px-6 py-3 border border-slate-200 rounded-xl font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-6 py-3 border-2 border-slate-200 rounded-2xl font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             >
               <ChevronLeft size={18} />
               Voltar
@@ -1546,7 +1667,7 @@ export default function AgendamentoPublico() {
               <button
                 onClick={() => setCurrentStep((s) => s + 1)}
                 disabled={!validateStep(currentStep)}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all hover:scale-105 hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 Próximo
                 <ChevronRight size={18} />
@@ -1555,7 +1676,7 @@ export default function AgendamentoPublico() {
               <button
                 onClick={handleSubmit}
                 disabled={loading || creating}
-                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:opacity-50"
+                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl font-semibold hover:from-emerald-600 hover:to-teal-700 transition-all hover:scale-105 hover:shadow-lg disabled:opacity-40"
               >
                 {loading || creating ? 'Enviando...' : 'Enviar Solicitação'}
                 <CheckCircle size={18} />

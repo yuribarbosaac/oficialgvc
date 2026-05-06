@@ -3,7 +3,7 @@ import { getPublicIP } from '../utils/network';
 import { generateDocumentHash } from '../utils/crypto';
 import { getBrowserFingerprint } from '../utils/browser';
 import { getLegalTimestamp } from '../utils/datetime';
-import { validateCPF } from './cpfService';
+import { validateCPFReceita } from './cpfService';
 
 export interface AssinaturaData {
   visitorId: string;
@@ -32,7 +32,7 @@ export const registrarAssinaturaDigital = async (dados: AssinaturaData): Promise
     const fingerprint = getBrowserFingerprint();
     const timestamp = getLegalTimestamp();
     
-    const cpfValidacao = await validateCPF(dados.cpf);
+    const cpfValidacao = await validateCPFReceita(dados.cpf);
     
     const assinaturaData = {
       visitor_id: dados.visitorId,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Visitor, OperationType } from '../../types';
 import { 
@@ -40,10 +40,9 @@ export default function Visitors() {
   
   const { userData, isAdmin } = useAuth();
 
-  const fetchVisitors = async () => {
+  const fetchVisitors = useCallback(async () => {
     try {
       setLoading(true);
-      // console.log('Buscando visitantes...');
       const { data, error } = await supabase.from('visitors').select('*').order('created_at', { ascending: false });
       
       if (error) {
@@ -53,28 +52,28 @@ export default function Visitors() {
         return;
       }
       
-      const mapped = data.map(d => ({
-        id: d.id,
-        fullName: d.full_name,
-        cpf: d.cpf,
-        passport: d.passport,
-        isForeigner: d.is_foreigner,
-        gender: d.gender,
-        category: d.category,
-        photoUrl: d.photo_url,
-        createdAt: d.created_at,
-        email: d.email,
-        phone: d.phone,
-        birthDate: d.birth_date,
-        address: d.address
-      })) as Visitor[];
-      setVisitors(mapped);
-    } catch (err) {
-      console.error("Erro ao carregar visitantes:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+const mapped = data.map(d => ({
+         id: d.id,
+         fullName: d.full_name,
+         cpf: d.cpf,
+         passport: d.passport,
+         isForeigner: d.is_foreigner,
+         gender: d.gender,
+         category: d.category,
+         photoUrl: d.photo_url,
+         createdAt: d.created_at,
+         email: d.email,
+         phone: d.phone,
+         birthDate: d.birth_date,
+         address: d.address
+       })) as Visitor[];
+       setVisitors(mapped);
+     } catch (err) {
+       console.error("Erro ao carregar visitantes:", err);
+     } finally {
+       setLoading(false);
+     }
+  }, []);
 
   useEffect(() => {
     fetchVisitors();
@@ -91,7 +90,7 @@ export default function Visitors() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAdmin]);
+  }, [isAdmin, fetchVisitors]);
 
   useEffect(() => {
     if (userData?.espacoId === 'todos') {
@@ -135,8 +134,6 @@ export default function Visitors() {
     try {
       const now = new Date();
 
-      console.log('Tentando inserir check-in para:', visitor.fullName);
-      
       // Apenas inserir - o banco que bloqueia duplicados via trigger
       const { error } = await supabase.from('visits').insert({
         visitor_id: visitor.id,
@@ -178,8 +175,6 @@ export default function Visitors() {
         throw error;
       }
 
-      console.log('Check-in realizado com sucesso!');
-      
       // Sucesso
       setShowSuccessPopup(true);
       setSuccessInfo({

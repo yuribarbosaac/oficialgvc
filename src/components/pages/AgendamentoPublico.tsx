@@ -30,7 +30,7 @@ import { getPublicIP } from '../../utils/network';
 import { getBrowserFingerprint } from '../../utils/browser';
 import { getLegalTimestamp } from '../../utils/datetime';
 import { generateDocumentHash } from '../../utils/crypto';
-import { validateCPF as validateCPFReceita } from '../../services/cpfService';
+import { validateCPFReceita } from '../../services/cpfService';
 
 interface FormData {
   solicitante_nome: string;
@@ -226,7 +226,6 @@ export default function AgendamentoPublico() {
           setFormData(parsed);
           if (savedStep) setCurrentStep(parseInt(savedStep) || 1);
           loaded = true;
-          console.log('Rascunho carregado do sessionStorage');
         }
       }
     } catch (e) {
@@ -241,11 +240,10 @@ export default function AgendamentoPublico() {
         
         if (savedData && savedData !== '{}') {
           const parsed = JSON.parse(savedData);
-          if (parsed && (parsed.solicitante_nome || parsed.espaco_id)) {
-            setFormData(parsed);
-            if (savedStep) setCurrentStep(parseInt(savedStep) || 1);
-            loaded = true;
-            console.log('Rascunho carregado do localStorage');
+if (parsed && (parsed.solicitante_nome || parsed.espaco_id)) {
+          setFormData(parsed);
+          if (savedStep) setCurrentStep(parseInt(savedStep) || 1);
+          loaded = true;
           }
         }
       } catch (e) {
@@ -263,7 +261,6 @@ export default function AgendamentoPublico() {
             ...dbDraft
           });
           setCurrentStep(dbDraft.current_step || 1);
-          console.log('Rascunho carregado do banco');
         }
       } catch (e) {
         console.error('Erro banco (não crítico):', e);
@@ -410,13 +407,6 @@ export default function AgendamentoPublico() {
   const { create, loading: creating } = useCreateAgendamento();
 
   useEffect(() => {
-    console.log('publicLoading:', publicLoading, 'publicUser:', publicUser);
-    if (publicUser) {
-      console.log('Usuário logado:', publicUser.email);
-    }
-  }, [publicLoading, publicUser]);
-
-  useEffect(() => {
     const loadSpaces = async () => {
       const { data } = await spaceService.list();
       if (data) {
@@ -548,7 +538,7 @@ export default function AgendamentoPublico() {
     const cpfDoc = formData.solicitante_documento.replace(/\D/g, '');
     let cpfValidation: any = null;
 
-    try {
+try {
       const selectedSpace = spaces.find((s) => s.id === formData.espaco_id);
 
       // Validar CPF na Receita Federal
@@ -559,7 +549,6 @@ export default function AgendamentoPublico() {
           setLoading(false);
           return;
         }
-        console.log('CPF validado na Receita:', cpfValidation);
       }
 
       // Usar Edge Function para submissão pública
@@ -631,7 +620,6 @@ export default function AgendamentoPublico() {
               termo_conteudo: termoCompleto,
               termo_hash: termoHash,
             });
-            console.log('Assinatura digital salva');
           } catch (e) {
             console.error('Erro ao salvar assinatura:', e);
           }

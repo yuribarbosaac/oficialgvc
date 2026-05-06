@@ -27,7 +27,7 @@ export interface CPFValidationResult {
   message?: string;
 }
 
-export const validateCPF = async (cpf: string): Promise<CPFValidationResult> => {
+export const validateCPFReceita = async (cpf: string): Promise<CPFValidationResult> => {
   const cleaned = cpf.replace(/\D/g, '');
   
   if (!isValidCPFFormat(cleaned)) {
